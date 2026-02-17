@@ -200,8 +200,8 @@
       <button class="btn danger" onclick="resetSim()">↺ RESET</button>
       <div class="control-row">
         <div class="control-label">SPEED</div>
-        <input type="range" id="speedSlider" min="1" max="10" value="3" oninput="updateSpeed(this)">
-        <div class="val-display" id="speedVal">3</div>
+        <input type="range" id="speedSlider" min="1" max="10" value="1" oninput="updateSpeed(this)">
+        <div class="val-display" id="speedVal">1</div>
       </div>
     </div>
     <div class="section">
@@ -213,7 +213,7 @@
       </div>
       <div class="control-row">
         <div class="control-label">MAX FOOD</div>
-        <input type="range" id="maxFood" min="20" max="300" value="120" oninput="updateParam('maxFood', this)">
+        <input type="range" id="maxFood" min="20" max="1000" value="120" oninput="updateParam('maxFood', this)">
         <div class="val-display" id="maxFoodVal">120</div>
       </div>
       <div class="control-row">
@@ -241,7 +241,9 @@
         <div class="legend-item"><div class="legend-dot" style="background:var(--accent3)"></div>FOOD — energy pellets</div>
         <div class="legend-item"><div class="legend-dot" style="background:#a29bfe"></div>MATING — purple, vulnerable!</div>
         <div class="legend-item"><div class="legend-dot" style="background:#ffd166;opacity:0.7"></div>SATED (90%+) — behaviour shift</div>
-        <div class="legend-item"><div class="legend-dot" style="background:#636e72;opacity:0.4"></div>DEAD — decomposing</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#a0b4f0;opacity:0.7"></div>SLEEPING — inert, vulnerable</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#5c3d1a;opacity:0.7"></div>CORPSE — carnivore food</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#636e72;opacity:0.4"></div>OLD AGE — no corpse</div>
       </div>
     </div>
     <div class="section">
@@ -271,8 +273,9 @@ let foods = [];
 let tick = 0;
 let generation = 1;
 let playing = true;
-let speed = 3;
+let speed = 1;
 let selectedCreature = null;
+let corpses = [];
 
 // How many ticks creatures stay in the purple mating state before baby spawns
 const MATING_DURATION = 60;
@@ -325,6 +328,10 @@ function createCreature(type, x, y, dna) {
     matingTicks:    0,     // progress through MATING_DURATION
     matingCooldown: 0,     // post-birth cooldown
     mateCount:      0,     // successful matings; capped at 3
+    sleeping:       false, // currently asleep
+    sleepTicks:     0,     // ticks remaining in sleep
+    sleepCooldown:  Math.floor(Math.random() * 400) + 200, // ticks until next sleep check
+    wakeScatter:    0,     // >0 = startled, flee at full speed
     trail:          [],
     gen:            generation,
   };
@@ -340,7 +347,7 @@ function createFood(x, y) {
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 function resetSim() {
-  creatures = []; foods = [];
+  creatures = []; foods = []; corpses = [];
   tick = 0; generation = 1;
   history.h = []; history.c = []; history.f = [];
   selectedCreature = null;
@@ -377,11 +384,58 @@ function updateCreature(c) {
 
   if (c.energy <= 0 || c.age > 4000) {
     if (c.matingWith) { c.matingWith.matingWith = null; c.matingWith.matingTicks = 0; }
+    // Starvation leaves a corpse; old age does not
+    if (c.energy <= 0) {
+      corpses.push({ x: c.x, y: c.y, energy: 25 + Math.random() * 20, decay: 0 });
+    }
     c.alive = false;
     return;
   }
 
   const W = canvas.width, H = canvas.height;
+
+  // ── SLEEP ─────────────────────────────────────────────────────────────────
+  if (c.sleeping) {
+    c.sleepTicks--;
+    // Sleeping metabolism is 10% of normal
+    // (energy was already deducted at 100% above; refund 90%)
+    c.energy += (c.dna.metabolism + c.dna.speed * 0.003 + c.dna.size * 0.002) * 0.9;
+
+    // Dampen velocity — nearly still
+    c.vx *= 0.05; c.vy *= 0.05;
+    c.x += c.vx; c.y += c.vy;
+    if (c.x < 0) c.x += W; if (c.x > W) c.x -= W;
+    if (c.y < 0) c.y += H; if (c.y > H) c.y -= H;
+    c.trail.push({ x: c.x, y: c.y });
+    if (c.trail.length > 8) c.trail.shift();
+
+    if (c.sleepTicks <= 0) {
+      c.sleeping = false;
+      c.sleepCooldown = 300 + Math.floor(Math.random() * 400);
+    }
+    c.energy = Math.min(c.energy, 300);
+    return; // Skip all other behaviour while asleep
+  }
+
+  // Startled — flee at max speed for a short burst
+  if (c.wakeScatter > 0) {
+    c.wakeScatter--;
+    // Random scatter direction was set when startled; just let velocity carry
+    const spd0 = Math.sqrt(c.vx*c.vx + c.vy*c.vy);
+    if (spd0 > c.dna.speed * 2) { c.vx = (c.vx/spd0)*c.dna.speed*2; c.vy = (c.vy/spd0)*c.dna.speed*2; }
+  }
+
+  // Tick down sleep cooldown; trigger sleep when it hits zero
+  if (c.sleepCooldown > 0) {
+    c.sleepCooldown--;
+  } else if (!c.matingWith && c.wakeScatter === 0) {
+    // Fall asleep: duration 180-360 ticks
+    c.sleeping = true;
+    c.sleepTicks = 180 + Math.floor(Math.random() * 180);
+    c.vx *= 0.1; c.vy *= 0.1;
+    c.energy = Math.min(c.energy, 300);
+    return;
+  }
 
   // ── ACTIVE MATING (creature is purple) ──────────────────────────────────
   if (c.matingWith) {
@@ -437,8 +491,10 @@ function updateCreature(c) {
           child.gen = newGen;
           creatures.push(child);
         }
-        // Energy cost scales with number of offspring
-        const cost = 30 + numOffspring * 15;
+        // Energy cost scales with number of offspring; carnivores pay 50% less
+        const baseCost = 30 + numOffspring * 15;
+        const costMult = c.dna.type === 'carnivore' ? 0.5 : 1.0;
+        const cost = baseCost * costMult;
         c.energy -= cost; partner.energy -= cost * 0.5;
         c.matingCooldown = 120; partner.matingCooldown = 120;
         c.mateCount++;       // track successful births
@@ -481,6 +537,15 @@ function updateCreature(c) {
       tx = c.x + (dx/d) * (isSated ? 120 : 80);
       ty = c.y + (dy/d) * (isSated ? 120 : 80);
     }
+    // Mildly repelled by corpses (smell of death = predator nearby)
+    if (tx === null) {
+      const corpse = findNearest(c, corpses, c.dna.sense * 0.5);
+      if (corpse) {
+        const dx = c.x - corpse.x, dy = c.y - corpse.y;
+        const d = Math.sqrt(dx*dx + dy*dy) + 0.001;
+        tx = c.x + (dx/d) * 40; ty = c.y + (dy/d) * 40;
+      }
+    }
     // Only seek food when NOT sated
     if (tx === null && !isSated) {
       const food = findNearest(c, foods, c.dna.sense);
@@ -510,11 +575,34 @@ function updateCreature(c) {
       }
       // Wander if no mate found — don't hunt
     } else {
-      // Carnivore hungry: prioritise purple pips first (easy prey), then herbivores
-      const purplePrey = findNearest(c,
-        creatures.filter(o => o.alive && o.matingWith !== null),
+      // Carnivore hungry: prioritise sleeping prey, purple pips, weak carnivores, corpses, herbivores
+      // Sleeping creatures are prime targets — easy, inert prey
+      const sleepingPrey = findNearest(c,
+        creatures.filter(o => o.alive && o.sleeping),
         c.dna.sense);
-      if (purplePrey) { tx = purplePrey.x; ty = purplePrey.y; }
+      if (sleepingPrey) { tx = sleepingPrey.x; ty = sleepingPrey.y; }
+
+      if (tx === null) {
+        const purplePrey = findNearest(c,
+          creatures.filter(o => o.alive && o.matingWith !== null),
+          c.dna.sense);
+        if (purplePrey) { tx = purplePrey.x; ty = purplePrey.y; }
+      }
+
+      // Cannibalism target: weak young carnivores
+      if (tx === null) {
+        const weakCarnivore = findNearest(c,
+          creatures.filter(o => o.alive && o !== c && o.dna.type === 'carnivore'
+                                && o.energy < 30 && o.age < c.age * 0.5),
+          c.dna.sense);
+        if (weakCarnivore) { tx = weakCarnivore.x; ty = weakCarnivore.y; }
+      }
+
+      // Scavenge corpses (easy energy)
+      if (tx === null) {
+        const nearCorpse = findNearest(c, corpses, c.dna.sense);
+        if (nearCorpse) { tx = nearCorpse.x; ty = nearCorpse.y; }
+      }
 
       if (tx === null) {
         const prey = findNearest(c,
@@ -562,21 +650,55 @@ function updateCreature(c) {
 
   // Carnivores hunt ONLY when below sated threshold (90%)
   if (c.dna.type === 'carnivore' && !isSated) {
+    let ate = false;
     for (const prey of creatures) {
       if (!prey.alive || prey === c) continue;
       const isPurple    = prey.matingWith !== null;
       const isHerbivore = prey.dna.type === 'herbivore';
-      if ((isPurple || isHerbivore) && dist(c, prey) < c.dna.size + prey.dna.size) {
+      const isSleeping  = prey.sleeping;
+      // Can eat: purple/mating prey, herbivores, sleeping creatures
+      // Cannibalism: eat carnivore only if it's <10% energy AND age < half attacker age
+      const isWeakCarnivore = prey.dna.type === 'carnivore'
+                              && prey.energy < 30          // <10% of 300
+                              && prey.age < c.age * 0.5;   // less than half attacker's age
+      const edible = isPurple || isHerbivore || isSleeping || isWeakCarnivore;
+      if (edible && dist(c, prey) < c.dna.size + prey.dna.size) {
         c.energy += prey.energy * 0.6;
         if (prey.matingWith) { prey.matingWith.matingWith = null; prey.matingWith.matingTicks = 0; }
+        // Wake nearby sleepers if this prey was asleep
+        if (prey.sleeping) {
+          for (const neighbour of creatures) {
+            if (neighbour !== prey && neighbour.sleeping && dist(neighbour, prey) < neighbour.dna.sense) {
+              neighbour.sleeping = false;
+              neighbour.sleepTicks = 0;
+              neighbour.sleepCooldown = 400 + Math.floor(Math.random() * 300);
+              // Scatter in random direction at high speed
+              const ang = Math.random() * Math.PI * 2;
+              neighbour.vx = Math.cos(ang) * neighbour.dna.speed * 2;
+              neighbour.vy = Math.sin(ang) * neighbour.dna.speed * 2;
+              neighbour.wakeScatter = 60;
+            }
+          }
+        }
         prey.alive = false;
+        ate = true;
         break;
+      }
+    }
+    // Also scavenge nearby corpses
+    if (!ate) {
+      for (let i = corpses.length - 1; i >= 0; i--) {
+        if (dist(c, corpses[i]) < c.dna.size + 5) {
+          c.energy += corpses[i].energy;
+          corpses.splice(i, 1);
+          break;
+        }
       }
     }
   }
 
-  // Initiate mating — requires 80%+ energy, under 3 prior matings, both partners eligible
-  if (mateElig) {
+  // Initiate mating — requires 80%+ energy, under 3 prior matings, both partners eligible, not sleeping
+  if (mateElig && !c.sleeping && c.wakeScatter === 0) {
     for (const other of creatures) {
       if (!other.alive || other === c || other.dna.type !== c.dna.type) continue;
       if (other.matingWith || other.matingCooldown > 0 || other.mateCount >= MAX_MATES) continue;
@@ -617,6 +739,10 @@ function updateSim() {
 
   for (const c of creatures) updateCreature(c);
 
+  // Decay corpses over time
+  for (const corp of corpses) corp.decay++;
+  corpses = corpses.filter(corp => corp.decay < 300);
+
   creatures = creatures.filter(c => c.alive || (c.age++ < 60));
 
   if (creatures.filter(c => c.dna.type === 'herbivore').length > 200)
@@ -636,17 +762,26 @@ function updateSim() {
 // ── Draw ──────────────────────────────────────────────────────────────────────
 function drawCreature(c) {
   const alive = c.alive;
-  const alpha = alive ? Math.min(1, c.energy / 80) : Math.max(0, 1 - (c.age - 3940) / 60);
+  const alpha = alive ? 1.0 : Math.max(0, 1 - (c.age - 3940) / 60);
   if (alpha <= 0) return;
 
   const isH      = c.dna.type === 'herbivore';
   const isMating = alive && c.matingWith !== null;
   const r        = c.dna.size;
 
-  // Colour: PURPLE while mating, normal otherwise
-  const baseColor  = alive ? (isMating ? '#a29bfe' : (isH ? '#00f5c4' : '#ff4d6d')) : '#444';
+  // Energy-based brightness/saturation: 20% min -> 100% at full energy
+  const ePct = alive ? Math.max(0, Math.min(1, c.energy / 300)) : 0;
+  const sat  = Math.round(30 + ePct * 70);  // 30%–100% saturation
+  const lit  = Math.round(20 + ePct * 45);  // 20%–65% lightness
+
+  // Base hue per type: mating=267(purple), herbivore=168(teal), carnivore=348(red)
+  const isSleepingDraw = alive && c.sleeping;
+  const hue = isMating ? 267 : isSleepingDraw ? 220 : (isH ? 168 : 348);
+  const baseColor  = alive ? `hsl(${hue},${sat}%,${lit}%)` : '#2a2a3a';
+  const glowColor  = alive ? `hsl(${hue},${sat}%,${lit}%)` : '#444';
+  // Extract approximate RGB for rgba() glow uses
   const glowRGB    = alive ? (isMating ? '162,155,254' : (isH ? '0,245,196' : '255,77,109')) : '68,68,68';
-  const trailColor = isMating ? 'rgba(162,155,254,0.2)' : (isH ? 'rgba(0,245,196,0.15)' : 'rgba(255,77,109,0.15)');
+  const trailColor = isMating ? `hsla(267,${sat}%,${lit}%,0.2)` : (isH ? `hsla(168,${sat}%,${lit}%,0.15)` : `hsla(348,${sat}%,${lit}%,0.15)`);
 
   ctx.save();
   ctx.globalAlpha = alpha;
@@ -670,6 +805,33 @@ function drawCreature(c) {
     ctx.setLineDash([3, 5]);
     ctx.stroke();
     ctx.setLineDash([]);
+  }
+
+  // Sleep indicator: zzz rings when asleep
+  if (alive && c.sleeping) {
+    ctx.save();
+    ctx.globalAlpha = (alpha * 0.6);
+    // Pulsing outer ring in dim blue-grey
+    const pulse = 0.5 + 0.5 * Math.sin(tick * 0.08);
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, r + 5 + pulse * 4, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(120,140,200,${0.4 + pulse * 0.3})`;
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([3, 4]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    // Tiny 'z' indicators floating upward
+    for (let z = 0; z < 3; z++) {
+      const zAge = (tick + z * 30) % 90;
+      const zAlpha = zAge < 45 ? zAge / 45 : (90 - zAge) / 45;
+      const zY = c.y - r - 6 - zAge * 0.25;
+      const zX = c.x + r + 2 + z * 4;
+      ctx.globalAlpha = alpha * zAlpha * 0.7;
+      ctx.fillStyle = 'rgba(160,180,240,1)';
+      ctx.font = `${7 + z}px monospace`;
+      ctx.fillText('z', zX, zY);
+    }
+    ctx.restore();
   }
 
   // Mating pulse ring + progress arc
@@ -718,14 +880,14 @@ function drawCreature(c) {
 
   if (alive) {
     ctx.fillStyle = baseColor;
-    ctx.shadowColor = baseColor;
+    ctx.shadowColor = glowColor;
     ctx.shadowBlur = isMating ? 14 : 8;
     ctx.fill();
     ctx.shadowBlur = 0;
   } else {
-    ctx.fillStyle = '#2a2a3a';
+    ctx.fillStyle = '#1a1a2a';
     ctx.fill();
-    ctx.strokeStyle = '#444';
+    ctx.strokeStyle = '#333';
     ctx.lineWidth = 0.5;
     ctx.stroke();
   }
@@ -766,6 +928,27 @@ function drawFood(f) {
   ctx.shadowBlur = 6;
   ctx.fill();
   ctx.shadowBlur = 0;
+  ctx.restore();
+}
+
+function drawCorpse(corp) {
+  const age = corp.decay / 300; // 0=fresh, 1=gone
+  const alpha = 1 - age * 0.8;
+  const r = 3 + (1 - age) * 2;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.beginPath();
+  ctx.arc(corp.x, corp.y, r, 0, Math.PI * 2);
+  ctx.fillStyle = `hsl(30,${Math.round(40 - age*30)}%,${Math.round(18 + age*8)}%)`;
+  ctx.shadowColor = 'rgba(80,40,0,0.3)';
+  ctx.shadowBlur = 4;
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  // Small X to distinguish from food
+  ctx.strokeStyle = `rgba(100,60,20,${0.5 * alpha})`;
+  ctx.lineWidth = 0.7;
+  ctx.beginPath(); ctx.moveTo(corp.x - r*0.5, corp.y - r*0.5); ctx.lineTo(corp.x + r*0.5, corp.y + r*0.5); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(corp.x + r*0.5, corp.y - r*0.5); ctx.lineTo(corp.x - r*0.5, corp.y + r*0.5); ctx.stroke();
   ctx.restore();
 }
 
@@ -810,6 +993,7 @@ function render() {
     ctx.setLineDash([]);
   }
 
+  for (const corp of corpses) drawCorpse(corp);
   for (const f of foods) drawFood(f);
   for (const c of creatures) drawCreature(c);
 }
@@ -832,17 +1016,19 @@ function updateUI() {
       const energyPct = Math.round((c.energy / 300) * 100);
       const isSated = c.energy >= 270;
       const maxedOut = c.mateCount >= 3;
-      const stateTag = c.matingWith
-        ? `<br><b style="color:#a29bfe">● MATING ${Math.round((c.matingTicks/MATING_DURATION)*100)}%</b>`
-        : isSated && !maxedOut
-          ? `<br><b style="color:#ffd166">◈ SATED — seeking mate</b>`
-          : isSated && maxedOut
-            ? `<br><b style="color:#ffd166">◈ SATED — retired</b>`
-            : maxedOut
-              ? `<br><b style="color:#636e72">✕ RETIRED — 3/3 matings</b>`
-              : c.matingCooldown > 0
-                ? `<br><b style="color:#636e72">◌ COOLDOWN ${c.matingCooldown}</b>`
-                : '';
+      const stateTag = c.sleeping
+        ? `<br><b style="color:#a0b4f0">💤 SLEEPING (${c.sleepTicks} ticks)</b>`
+        : c.matingWith
+          ? `<br><b style="color:#a29bfe">● MATING ${Math.round((c.matingTicks/MATING_DURATION)*100)}%</b>`
+          : isSated && !maxedOut
+            ? `<br><b style="color:#ffd166">◈ SATED — seeking mate</b>`
+            : isSated && maxedOut
+              ? `<br><b style="color:#ffd166">◈ SATED — retired</b>`
+              : maxedOut
+                ? `<br><b style="color:#636e72">✕ RETIRED — 3/3 matings</b>`
+                : c.matingCooldown > 0
+                  ? `<br><b style="color:#636e72">◌ COOLDOWN ${c.matingCooldown}</b>`
+                  : '';
       info.innerHTML = `
         <b>TYPE:</b> ${d.type.toUpperCase()}<br>
         <b>ENERGY:</b> ${Math.round(c.energy)} <b style="opacity:0.5">(${energyPct}%)</b><br>
