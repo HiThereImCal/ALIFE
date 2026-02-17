@@ -221,6 +221,12 @@
         <input type="range" id="mutRate" min="0" max="50" value="10" oninput="updateParam('mutRate', this)">
         <div class="val-display" id="mutRateVal">10%</div>
       </div>
+      <div class="control-row">
+        <div class="control-label">FLOCK STR</div>
+        <input type="range" id="flockStr" min="0" max="20" value="10" oninput="updateParam('flockStr', this)">
+        <div class="val-display" id="flockStrVal">10</div>
+      </div>
+      <button class="btn" id="pheroBtn" onclick="togglePhero()" style="margin-top:2px;">◎ SHOW SCENT TRAILS</button>
     </div>
     <div class="section">
       <div class="section-title">Spawn</div>
@@ -242,6 +248,8 @@
         <div class="legend-item"><div class="legend-dot" style="background:#a29bfe"></div>MATING — purple, vulnerable!</div>
         <div class="legend-item"><div class="legend-dot" style="background:#ffd166;opacity:0.7"></div>SATED (90%+) — behaviour shift</div>
         <div class="legend-item"><div class="legend-dot" style="background:#a0b4f0;opacity:0.7"></div>SLEEPING — inert, vulnerable</div>
+        <div class="legend-item"><div class="legend-dot" style="background:rgba(0,245,196,0.4)"></div>HERB SCENT — carnivores track</div>
+        <div class="legend-item"><div class="legend-dot" style="background:rgba(255,77,109,0.4)"></div>CARN SCENT — herbivores flee</div>
         <div class="legend-item"><div class="legend-dot" style="background:#5c3d1a;opacity:0.7"></div>CORPSE — carnivore food</div>
         <div class="legend-item"><div class="legend-dot" style="background:#636e72;opacity:0.4"></div>OLD AGE — no corpse</div>
       </div>
@@ -277,10 +285,73 @@ let speed = 1;
 let selectedCreature = null;
 let corpses = [];
 
+// ── Pheromone grids ───────────────────────────────────────────────────────────
+const PHERO_CELL = 8;        // pixels per grid cell
+let pheroW = 1, pheroH = 1; // grid dimensions, set on resize
+let pheroHerb = null;        // herbivore scent (teal) — carnivores follow this
+let pheroCarn = null;        // carnivore scent (red)  — herbivores flee this
+
+function initPhero() {
+  pheroW = Math.ceil(canvas.width  / PHERO_CELL);
+  pheroH = Math.ceil(canvas.height / PHERO_CELL);
+  pheroHerb = new Float32Array(pheroW * pheroH);
+  pheroCarn = new Float32Array(pheroW * pheroH);
+}
+
+function pheroIdx(gx, gy) { return gy * pheroW + gx; }
+
+function depositPhero(grid, x, y, amount) {
+  const gx = Math.floor(x / PHERO_CELL);
+  const gy = Math.floor(y / PHERO_CELL);
+  if (gx < 0 || gx >= pheroW || gy < 0 || gy >= pheroH) return;
+  grid[pheroIdx(gx, gy)] = Math.min(1, grid[pheroIdx(gx, gy)] + amount);
+}
+
+function samplePhero(grid, x, y) {
+  const gx = Math.floor(x / PHERO_CELL);
+  const gy = Math.floor(y / PHERO_CELL);
+  if (gx < 0 || gx >= pheroW || gy < 0 || gy >= pheroH) return 0;
+  return grid[pheroIdx(gx, gy)];
+}
+
+// Read gradient of grid at position — returns (dx,dy) pointing uphill
+function pheroGradient(grid, x, y) {
+  const gx = Math.floor(x / PHERO_CELL);
+  const gy = Math.floor(y / PHERO_CELL);
+  const get = (gx2, gy2) => {
+    if (gx2 < 0 || gx2 >= pheroW || gy2 < 0 || gy2 >= pheroH) return 0;
+    return grid[pheroIdx(gx2, gy2)];
+  };
+  const dx = get(gx+1, gy) - get(gx-1, gy);
+  const dy = get(gx, gy+1) - get(gx, gy-1);
+  return { dx, dy };
+}
+
+// Evaporate and diffuse the grid — called each tick
+function updatePhero(grid) {
+  const evap    = 0.992; // retain 99.2% each tick — slow fade
+  const diffuse = 0.06;  // how much bleeds to neighbours
+  const next = new Float32Array(grid.length);
+  for (let gy = 0; gy < pheroH; gy++) {
+    for (let gx = 0; gx < pheroW; gx++) {
+      const i   = pheroIdx(gx, gy);
+      const val = grid[i] * evap;
+      const bleed = val * diffuse;
+      next[i] += val - bleed;
+      // Spread a fraction to the 4 neighbours
+      if (gx > 0)          next[pheroIdx(gx-1, gy)] += bleed * 0.25;
+      if (gx < pheroW - 1) next[pheroIdx(gx+1, gy)] += bleed * 0.25;
+      if (gy > 0)          next[pheroIdx(gx, gy-1)] += bleed * 0.25;
+      if (gy < pheroH - 1) next[pheroIdx(gx, gy+1)] += bleed * 0.25;
+    }
+  }
+  grid.set(next);
+}
+
 // How many ticks creatures stay in the purple mating state before baby spawns
 const MATING_DURATION = 60;
 
-const params = { foodRate: 8, maxFood: 120, mutRate: 10 };
+const params = { foodRate: 8, maxFood: 120, mutRate: 10, flockStr: 10, showPhero: false };
 const history = { h: [], c: [], f: [] };
 const MAX_HISTORY = 196;
 
@@ -347,7 +418,7 @@ function createFood(x, y) {
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 function resetSim() {
-  creatures = []; foods = []; corpses = [];
+  creatures = []; foods = []; corpses = []; initPhero();
   tick = 0; generation = 1;
   history.h = []; history.c = []; history.f = [];
   selectedCreature = null;
@@ -546,6 +617,15 @@ function updateCreature(c) {
         tx = c.x + (dx/d) * 40; ty = c.y + (dy/d) * 40;
       }
     }
+    // Flee carnivore pheromone trail — avoid areas carnivores recently passed through
+    if (tx === null && pheroCarn) {
+      const grad = pheroGradient(pheroCarn, c.x, c.y);
+      const mag  = Math.sqrt(grad.dx*grad.dx + grad.dy*grad.dy);
+      if (mag > 0.02) { // only react to meaningful scent gradient
+        c.vx -= (grad.dx/mag) * 0.25;
+        c.vy -= (grad.dy/mag) * 0.25;
+      }
+    }
     // Only seek food when NOT sated
     if (tx === null && !isSated) {
       const food = findNearest(c, foods, c.dna.sense);
@@ -611,6 +691,16 @@ function updateCreature(c) {
         if (prey) { tx = prey.x; ty = prey.y; }
       }
 
+      // Follow herbivore pheromone trail when no visible prey — sniff them out
+      if (tx === null && pheroHerb) {
+        const grad = pheroGradient(pheroHerb, c.x, c.y);
+        const mag  = Math.sqrt(grad.dx*grad.dx + grad.dy*grad.dy);
+        if (mag > 0.03) {
+          c.vx += (grad.dx/mag) * 0.3;
+          c.vy += (grad.dy/mag) * 0.3;
+        }
+      }
+
       // Seek mate when eligible even while not sated (if no prey nearby)
       if (tx === null && mateElig) {
         const mate = findNearest(c,
@@ -629,6 +719,50 @@ function updateCreature(c) {
     c.vx += (dx/d) * 0.4; c.vy += (dy/d) * 0.4;
   } else {
     c.vx += (Math.random()-0.5) * 0.5; c.vy += (Math.random()-0.5) * 0.5;
+  }
+
+  // ── FLOCKING (Boids) ────────────────────────────────────────────────────────
+  // Neighbours = same type, alive, not sleeping, within flock radius
+  const flockRadius = c.dna.sense * 0.6;
+  const sepRadius   = c.dna.size * 3.5; // personal space
+
+  let sepX = 0, sepY = 0, sepN = 0;   // separation
+  let aliX = 0, aliY = 0, aliN = 0;   // alignment
+  let cohX = 0, cohY = 0, cohN = 0;   // cohesion
+
+  for (const o of creatures) {
+    if (!o.alive || o === c || o.sleeping || o.dna.type !== c.dna.type) continue;
+    const dx = o.x - c.x, dy = o.y - c.y;
+    const d2 = dx*dx + dy*dy;
+    const fd = flockRadius * flockRadius;
+    if (d2 > fd) continue;
+    const d = Math.sqrt(d2) + 0.001;
+
+    // Separation — push away from very close neighbours
+    if (d < sepRadius) {
+      sepX -= dx / d; sepY -= dy / d;
+      sepN++;
+    }
+    // Alignment — match velocity of neighbours
+    aliX += o.vx; aliY += o.vy; aliN++;
+    // Cohesion — move toward centre of neighbours
+    cohX += o.x; cohY += o.y; cohN++;
+  }
+
+  const fs = params.flockStr / 10; // 0=off, 1=default, 2=max
+  if (c.dna.type === 'herbivore') {
+    // Herbivores flock strongly — safety in numbers
+    if (sepN > 0) { c.vx += (sepX/sepN) * 0.35 * fs; c.vy += (sepY/sepN) * 0.35 * fs; }
+    if (aliN > 0) { c.vx += (aliX/aliN - c.vx) * 0.08 * fs; c.vy += (aliY/aliN - c.vy) * 0.08 * fs; }
+    if (cohN > 0) {
+      const cx = cohX/cohN - c.x, cy = cohY/cohN - c.y;
+      const cd = Math.sqrt(cx*cx+cy*cy)+0.001;
+      if (tx === null) { c.vx += (cx/cd) * 0.12 * fs; c.vy += (cy/cd) * 0.12 * fs; }
+    }
+  } else {
+    // Carnivores spread out — avoid competing with packmates for same prey
+    if (sepN > 0) { c.vx += (sepX/sepN) * 0.5 * fs; c.vy += (sepY/sepN) * 0.5 * fs; }
+    if (aliN > 0) { c.vx += (aliX/aliN - c.vx) * 0.04 * fs; c.vy += (aliY/aliN - c.vy) * 0.04 * fs; }
   }
 
   const spd = Math.sqrt(c.vx*c.vx + c.vy*c.vy);
@@ -735,6 +869,17 @@ function updateSim() {
         }
       }
     }
+  }
+
+  // Deposit pheromones — alive, non-sleeping agents leave scent trails
+  if (pheroHerb && pheroCarn) {
+    for (const c of creatures) {
+      if (!c.alive || c.sleeping) continue;
+      if (c.dna.type === 'herbivore') depositPhero(pheroHerb, c.x, c.y, 0.18);
+      else                            depositPhero(pheroCarn, c.x, c.y, 0.18);
+    }
+    updatePhero(pheroHerb);
+    updatePhero(pheroCarn);
   }
 
   for (const c of creatures) updateCreature(c);
@@ -983,6 +1128,25 @@ function render() {
   ctx.fillStyle = 'rgba(6,8,16,0.85)';
   ctx.fillRect(0, 0, W, H);
 
+  // Draw pheromone layers as subtle coloured mist
+  if (pheroHerb && pheroCarn && params.showPhero) {
+    for (let gy = 0; gy < pheroH; gy++) {
+      for (let gx = 0; gx < pheroW; gx++) {
+        const hi = pheroHerb[pheroIdx(gx, gy)];
+        const ci = pheroCarn[pheroIdx(gx, gy)];
+        const px = gx * PHERO_CELL, py = gy * PHERO_CELL;
+        if (hi > 0.03) {
+          ctx.fillStyle = `rgba(0,245,196,${(hi * 0.25).toFixed(3)})`;
+          ctx.fillRect(px, py, PHERO_CELL, PHERO_CELL);
+        }
+        if (ci > 0.03) {
+          ctx.fillStyle = `rgba(255,77,109,${(ci * 0.22).toFixed(3)})`;
+          ctx.fillRect(px, py, PHERO_CELL, PHERO_CELL);
+        }
+      }
+    }
+  }
+
   if (selectedCreature && selectedCreature.alive) {
     ctx.beginPath();
     ctx.arc(selectedCreature.x, selectedCreature.y, selectedCreature.dna.size + 10, 0, Math.PI * 2);
@@ -1109,12 +1273,20 @@ function resize() {
   canvas.height       = window.innerHeight - header.offsetHeight - footer.offsetHeight;
   chartCanvas.width   = panel.offsetWidth - 24;
   chartCanvas.height  = 60;
+  initPhero();
 }
 
 window.addEventListener('resize', resize);
 resize();
 resetSim();
 loop();
+
+function togglePhero() {
+  params.showPhero = !params.showPhero;
+  const btn = document.getElementById('pheroBtn');
+  btn.textContent = params.showPhero ? '◎ HIDE SCENT TRAILS' : '◎ SHOW SCENT TRAILS';
+  btn.classList.toggle('active', params.showPhero);
+}
 
 // ── Spawn quantity selector ────────────────────────────────────────────────────
 let currentQty = 1;
