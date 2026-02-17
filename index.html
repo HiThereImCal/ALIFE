@@ -179,6 +179,7 @@
   <div class="header-stats">
     <div class="stat"><div class="stat-val" id="hPop">0</div><div class="stat-lbl">Herbivores</div></div>
     <div class="stat"><div class="stat-val" id="cPop" style="color:var(--accent2)">0</div><div class="stat-lbl">Carnivores</div></div>
+    <div class="stat"><div class="stat-val" id="oPop" style="color:#00dce0">0</div><div class="stat-lbl">Omnivores</div></div>
     <div class="stat"><div class="stat-val" id="fPop" style="color:var(--accent3)">0</div><div class="stat-lbl">Food</div></div>
     <div class="stat"><div class="stat-val" id="genNum" style="color:#a29bfe">0</div><div class="stat-lbl">Generation</div></div>
     <div class="stat"><div class="stat-val" id="tickNum">0</div><div class="stat-lbl">Tick</div></div>
@@ -232,6 +233,7 @@
       <div class="section-title">Spawn</div>
       <button class="btn" id="spawnH" onclick="spawnCreatures('herbivore', spawnAmt())">+ <span id="spawnHlbl">1</span> HERBIVORE<span id="spawnHs"></span></button>
       <button class="btn" id="spawnC" onclick="spawnCreatures('carnivore', spawnAmt())">+ <span id="spawnClbl">1</span> CARNIVORE<span id="spawnCs"></span></button>
+      <button class="btn" id="spawnO" onclick="spawnCreatures('omnivore', spawnAmt())">+ <span id="spawnOlbl">1</span> OMNIVORE<span id="spawnOs"></span></button>
       <button class="btn" id="spawnF" onclick="spawnFood(spawnAmt())">+ <span id="spawnFlbl">1</span> FOOD</button>
       <div style="display:flex;gap:6px;margin-top:8px;">
         <button class="btn qty-btn active" id="qty1" onclick="setQty(1)" style="flex:1;text-align:center;padding:6px 0;">1</button>
@@ -243,12 +245,15 @@
       <div class="section-title">Legend</div>
       <div class="legend">
         <div class="legend-item"><div class="legend-dot" style="background:var(--accent)"></div>HERBIVORE — eats food</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#00dce0"></div>OMNIVORE — food + corpses</div>
         <div class="legend-item"><div class="legend-dot" style="background:var(--accent2)"></div>CARNIVORE — hunts prey</div>
         <div class="legend-item"><div class="legend-dot" style="background:var(--accent3)"></div>FOOD — energy pellets</div>
         <div class="legend-item"><div class="legend-dot" style="background:#a29bfe"></div>MATING — purple, vulnerable!</div>
         <div class="legend-item"><div class="legend-dot" style="background:#ffd166;opacity:0.7"></div>SATED (90%+) — behaviour shift</div>
         <div class="legend-item"><div class="legend-dot" style="background:#a0b4f0;opacity:0.7"></div>SLEEPING — inert, vulnerable</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#ffa032;opacity:0.8"></div>SPRINTING — burning stamina</div>
         <div class="legend-item"><div class="legend-dot" style="background:rgba(0,245,196,0.4)"></div>HERB SCENT — carnivores track</div>
+        <div class="legend-item"><div class="legend-dot" style="background:rgba(0,210,255,0.5)"></div>OMNI SCENT — distinct cyan</div>
         <div class="legend-item"><div class="legend-dot" style="background:rgba(255,77,109,0.4)"></div>CARN SCENT — herbivores flee</div>
         <div class="legend-item"><div class="legend-dot" style="background:#5c3d1a;opacity:0.7"></div>CORPSE — carnivore food</div>
         <div class="legend-item"><div class="legend-dot" style="background:#636e72;opacity:0.4"></div>OLD AGE — no corpse</div>
@@ -290,12 +295,14 @@ const PHERO_CELL = 8;        // pixels per grid cell
 let pheroW = 1, pheroH = 1; // grid dimensions, set on resize
 let pheroHerb = null;        // herbivore scent (teal) — carnivores follow this
 let pheroCarn = null;        // carnivore scent (red)  — herbivores flee this
+let pheroOmni = null;        // omnivore scent (cyan)  — distinct from herb
 
 function initPhero() {
   pheroW = Math.ceil(canvas.width  / PHERO_CELL);
   pheroH = Math.ceil(canvas.height / PHERO_CELL);
   pheroHerb = new Float32Array(pheroW * pheroH);
   pheroCarn = new Float32Array(pheroW * pheroH);
+  pheroOmni = new Float32Array(pheroW * pheroH);
 }
 
 function pheroIdx(gx, gy) { return gy * pheroW + gx; }
@@ -352,7 +359,7 @@ function updatePhero(grid) {
 const MATING_DURATION = 60;
 
 const params = { foodRate: 8, maxFood: 120, mutRate: 10, flockStr: 10, showPhero: false };
-const history = { h: [], c: [], f: [] };
+const history = { h: [], c: [], o: [], f: [] };
 const MAX_HISTORY = 196;
 
 // ── DNA ───────────────────────────────────────────────────────────────────────
@@ -365,6 +372,7 @@ function randomDNA(type) {
     fertility:  0.001 + Math.random() * 0.004,
     metabolism: 0.015 + Math.random() * 0.03,
     aggression: type === 'carnivore' ? 0.5 + Math.random() * 0.5 : Math.random() * 0.3,
+    stamina:    (type === 'carnivore' || type === 'omnivore') ? 0.4 + Math.random() * 0.6 : 1.0,
   };
 }
 
@@ -379,6 +387,7 @@ function mutateDNA(dna) {
     fertility:  Math.max(0.0005, Math.min(0.01, mut(dna.fertility))),
     metabolism: Math.max(0.005,  Math.min(0.08, mut(dna.metabolism))),
     aggression: Math.max(0,   Math.min(1,    mut(dna.aggression))),
+    stamina:    Math.max(0.1, Math.min(1.0,  mut(dna.stamina ?? 1.0))),
   };
 }
 
@@ -403,6 +412,9 @@ function createCreature(type, x, y, dna) {
     sleepTicks:     0,     // ticks remaining in sleep
     sleepCooldown:  Math.floor(Math.random() * 400) + 200, // ticks until next sleep check
     wakeScatter:    0,     // >0 = startled, flee at full speed
+    sprinting:      false, // is currently sprinting
+    packTarget:     null,  // shared prey reference for pack hunting
+    status:         'WANDERING',
     trail:          [],
     gen:            generation,
   };
@@ -420,7 +432,7 @@ function createFood(x, y) {
 function resetSim() {
   creatures = []; foods = []; corpses = []; initPhero();
   tick = 0; generation = 1;
-  history.h = []; history.c = []; history.f = [];
+  history.h = []; history.c = []; history.o = []; history.f = [];
   selectedCreature = null;
   for (let i = 0; i < 20; i++) creatures.push(createCreature('herbivore'));
   for (let i = 0; i < 6;  i++) creatures.push(createCreature('carnivore'));
@@ -445,6 +457,31 @@ function findNearest(c, list, maxDist) {
   return best;
 }
 
+// Cone vision for carnivores — forward-facing arc, longer range
+// angle is half-arc in radians (Math.PI/3 = 60° each side = 120° total)
+function findInCone(c, list, range, halfArc) {
+  const heading = Math.atan2(c.vy, c.vx);
+  // Fallback to full circle if barely moving
+  const spd = Math.sqrt(c.vx*c.vx + c.vy*c.vy);
+  const useCone = spd > 0.1;
+  let best = null, bd = range;
+  for (const item of list) {
+    const dx = item.x - c.x, dy = item.y - c.y;
+    const d = Math.sqrt(dx*dx + dy*dy);
+    if (d >= bd) continue;
+    if (useCone) {
+      const angle = Math.atan2(dy, dx);
+      let diff = angle - heading;
+      // Normalise to -PI..PI
+      while (diff >  Math.PI) diff -= 2*Math.PI;
+      while (diff < -Math.PI) diff += 2*Math.PI;
+      if (Math.abs(diff) > halfArc) continue;
+    }
+    bd = d; best = item;
+  }
+  return best;
+}
+
 // ── Update ────────────────────────────────────────────────────────────────────
 function updateCreature(c) {
   if (!c.alive) return;
@@ -455,10 +492,9 @@ function updateCreature(c) {
 
   if (c.energy <= 0 || c.age > 4000) {
     if (c.matingWith) { c.matingWith.matingWith = null; c.matingWith.matingTicks = 0; }
-    // Starvation leaves a corpse; old age does not
-    if (c.energy <= 0) {
-      corpses.push({ x: c.x, y: c.y, energy: 25 + Math.random() * 20, decay: 0 });
-    }
+    // All deaths leave a corpse (burst carnivore pheromone too — death smell)
+    corpses.push({ x: c.x, y: c.y, energy: 20 + Math.random() * 25, decay: 0, fromType: c.dna.type });
+    if (pheroCarn) depositPhero(pheroCarn, c.x, c.y, 0.6);
     c.alive = false;
     return;
   }
@@ -552,6 +588,7 @@ function updateCreature(c) {
             fertility:  avg(c.dna.fertility,  partner.dna.fertility),
             metabolism: avg(c.dna.metabolism, partner.dna.metabolism),
             aggression: avg(c.dna.aggression, partner.dna.aggression),
+            stamina:    avg(c.dna.stamina ?? 1.0, partner.dna.stamina ?? 1.0),
           });
           const child = createCreature(
             c.dna.type,
@@ -564,7 +601,7 @@ function updateCreature(c) {
         }
         // Energy cost scales with number of offspring; carnivores pay 50% less
         const baseCost = 30 + numOffspring * 15;
-        const costMult = c.dna.type === 'carnivore' ? 0.5 : 1.0;
+        const costMult = (c.dna.type === 'carnivore' || c.dna.type === 'omnivore') ? 0.5 : 1.0;
         const cost = baseCost * costMult;
         c.energy -= cost; partner.energy -= cost * 0.5;
         c.matingCooldown = 120; partner.matingCooldown = 120;
@@ -589,7 +626,7 @@ function updateCreature(c) {
 
   const MATE_ENERGY  = 240; // 80% of max 300 — required to mate
   const SATED_ENERGY = 270; // 90% of max 300 — above this, behaviour shifts
-  const MAX_MATES    = 3;   // after 3 successful matings, ineligible forever
+  const MAX_MATES    = c.dna.type === 'herbivore' ? 3 : 5; // carns/omnis retire at 5
 
   const isSated    = c.energy >= SATED_ENERGY;
   const canMate    = c.matingCooldown === 0 && c.mateCount < MAX_MATES && !c.matingWith;
@@ -598,6 +635,7 @@ function updateCreature(c) {
   let tx = null, ty = null;
 
   if (c.dna.type === 'herbivore') {
+    c.status = 'FORAGING';
     // Always flee carnivores (stronger urge when sated — nothing to distract from survival)
     const predator = findNearest(c,
       creatures.filter(o => o.alive && o.dna.type === 'carnivore'),
@@ -607,6 +645,7 @@ function updateCreature(c) {
       const d = Math.sqrt(dx*dx + dy*dy) + 0.001;
       tx = c.x + (dx/d) * (isSated ? 120 : 80);
       ty = c.y + (dy/d) * (isSated ? 120 : 80);
+      c.status = 'FLEEING';
     }
     // Mildly repelled by corpses (smell of death = predator nearby)
     if (tx === null) {
@@ -618,10 +657,11 @@ function updateCreature(c) {
       }
     }
     // Flee carnivore pheromone trail — avoid areas carnivores recently passed through
+    // (Herbivores only — omnivores don't fear carnivore scent)
     if (tx === null && pheroCarn) {
       const grad = pheroGradient(pheroCarn, c.x, c.y);
       const mag  = Math.sqrt(grad.dx*grad.dx + grad.dy*grad.dy);
-      if (mag > 0.02) { // only react to meaningful scent gradient
+      if (mag > 0.02) {
         c.vx -= (grad.dx/mag) * 0.25;
         c.vy -= (grad.dy/mag) * 0.25;
       }
@@ -629,7 +669,7 @@ function updateCreature(c) {
     // Only seek food when NOT sated
     if (tx === null && !isSated) {
       const food = findNearest(c, foods, c.dna.sense);
-      if (food) { tx = food.x; ty = food.y; }
+      if (food) { tx = food.x; ty = food.y; c.status = 'SEEKING FOOD'; }
     }
     // Seek mate when eligible (sated herbivores actively seek mates)
     if (tx === null && mateElig) {
@@ -638,77 +678,160 @@ function updateCreature(c) {
                               o.energy >= MATE_ENERGY && o.matingCooldown === 0 &&
                               !o.matingWith && o.mateCount < MAX_MATES),
         c.dna.sense * 0.8);
-      if (mate) { tx = mate.x; ty = mate.y; }
+      if (mate) { tx = mate.x; ty = mate.y; c.status = 'SEEKING MATE'; }
+    }
+    if (isSated && tx === null) c.status = 'SATED — WANDERING';
+
+  } else if (c.dna.type === 'omnivore') {
+    // ── OMNIVORE BEHAVIOUR ──────────────────────────────────────────────────
+    // Dual vision: cone (forward, long) + circle (close, omnidirectional)
+    const CONE_RANGE  = c.dna.sense * 1.8;
+    const CONE_ARC    = Math.PI / 3;
+
+    c.sprinting = false;
+    c.status = 'FORAGING';
+
+    const lists = window._simLists || {};
+    const wCarn = (lists.carns || []).filter(o => o !== c);
+    const dangerCarn = findNearest(c, wCarn, c.dna.sense); // nearby carnivore — flee if awake
+
+    if (isSated) {
+      // SHEPHERDING: attract nearby herbivores to follow
+      c.status = 'SHEPHERDING';
+      // Seek mates if eligible
+      if (mateElig) {
+        const mate = findNearest(c,
+          (lists.alive || []).filter(o => o !== c && o.dna.type === 'omnivore' &&
+            o.energy >= MATE_ENERGY && o.matingCooldown === 0 && !o.matingWith && o.mateCount < MAX_MATES),
+          c.dna.sense * 0.8);
+        if (mate) { tx = mate.x; ty = mate.y; c.status = 'SEEKING MATE'; }
+      }
+    } else {
+      // Flee awake carnivores
+      if (dangerCarn && !dangerCarn.sleeping) {
+        const dx = c.x - dangerCarn.x, dy = c.y - dangerCarn.y;
+        const d = Math.sqrt(dx*dx+dy*dy)+0.001;
+        tx = c.x + (dx/d)*100; ty = c.y + (dy/d)*100;
+        c.status = 'FLEEING CARNIVORE';
+      }
+      // Scavenge corpses (omnis eat all corpses — priority)
+      if (tx === null) {
+        const nc = findNearest(c, corpses, c.dna.sense);
+        if (nc) { tx = nc.x; ty = nc.y; c.packTarget = null; c.status = 'SCAVENGING'; }
+      }
+      // Eat food like herbivore
+      if (tx === null) {
+        const food = findNearest(c, foods, c.dna.sense);
+        if (food) { tx = food.x; ty = food.y; c.status = 'SEEKING FOOD'; }
+      }
+      // Seek mate if nothing else
+      if (tx === null && mateElig) {
+        const mate = findNearest(c,
+          (lists.alive || []).filter(o => o !== c && o.dna.type === 'omnivore' &&
+            o.energy >= MATE_ENERGY && o.matingCooldown === 0 && !o.matingWith && o.mateCount < MAX_MATES),
+          c.dna.sense * 0.5);
+        if (mate) { tx = mate.x; ty = mate.y; c.status = 'SEEKING MATE'; }
+      }
+      if (tx === null) { c.status = 'WANDERING'; c.packTarget = null; }
     }
 
   } else {
-    // Carnivore at 90%+ energy: focus on mating, ignore prey
+    // ── CARNIVORE BEHAVIOUR ────────────────────────────────────────────────────
+    const CONE_RANGE  = c.dna.sense * 1.8;
+    const CONE_ARC    = Math.PI / 3;
+
+    c.sprinting = false;
+    const lists = window._simLists || {};
+
+    // Avoid awake omnivores — they're not worth the trouble
+    const nearOmni = findNearest(c,
+      (lists.omnis || []).filter(o => !o.sleeping && o.energy >= 30),
+      c.dna.sense * 0.6);
+    if (nearOmni) {
+      const dx = c.x - nearOmni.x, dy = c.y - nearOmni.y;
+      const d = Math.sqrt(dx*dx+dy*dy)+0.001;
+      c.vx += (dx/d) * 0.3; c.vy += (dy/d) * 0.3;
+    }
+
     if (isSated) {
-      // Seek mate only — no hunting while sated
+      c.status = 'SEEKING MATE';
       if (mateElig) {
         const mate = findNearest(c,
-          creatures.filter(o => o.alive && o !== c && o.dna.type === 'carnivore' &&
-                                o.energy >= MATE_ENERGY && o.matingCooldown === 0 &&
-                                !o.matingWith && o.mateCount < MAX_MATES),
+          (lists.carns || []).filter(o => o !== c &&
+            o.energy >= MATE_ENERGY && o.matingCooldown === 0 && !o.matingWith && o.mateCount < MAX_MATES),
           c.dna.sense * 0.8);
         if (mate) { tx = mate.x; ty = mate.y; }
       }
-      // Wander if no mate found — don't hunt
+      if (tx === null) c.status = 'SATED — WANDERING';
     } else {
-      // Carnivore hungry: prioritise sleeping prey, purple pips, weak carnivores, corpses, herbivores
-      // Sleeping creatures are prime targets — easy, inert prey
-      const sleepingPrey = findNearest(c,
-        creatures.filter(o => o.alive && o.sleeping),
-        c.dna.sense);
-      if (sleepingPrey) { tx = sleepingPrey.x; ty = sleepingPrey.y; }
+      c.status = 'HUNTING';
 
-      if (tx === null) {
-        const purplePrey = findNearest(c,
-          creatures.filter(o => o.alive && o.matingWith !== null),
-          c.dna.sense);
-        if (purplePrey) { tx = purplePrey.x; ty = purplePrey.y; }
+      // Pack hunting coordination
+      let packInterceptX = null, packInterceptY = null;
+      for (const pack of (lists.carns || [])) {
+        if (pack === c || !pack.packTarget) continue;
+        if (dist(c, pack) > c.dna.sense * 1.2) continue;
+        const prey = pack.packTarget;
+        if (!prey.alive) continue;
+        const interceptX = prey.x + prey.vx * 20;
+        const interceptY = prey.y + prey.vy * 20;
+        if (dist(c, prey) > dist(pack, prey)) {
+          packInterceptX = interceptX; packInterceptY = interceptY; break;
+        }
       }
+      if (packInterceptX !== null) { tx = packInterceptX; ty = packInterceptY; c.status = 'PACK FLANKING'; }
 
-      // Cannibalism target: weak young carnivores
+      // Cone prey detection — sleeping first
       if (tx === null) {
-        const weakCarnivore = findNearest(c,
-          creatures.filter(o => o.alive && o !== c && o.dna.type === 'carnivore'
-                                && o.energy < 30 && o.age < c.age * 0.5),
-          c.dna.sense);
-        if (weakCarnivore) { tx = weakCarnivore.x; ty = weakCarnivore.y; }
+        const sp = findInCone(c, lists.sleeping || [], CONE_RANGE, CONE_ARC);
+        if (sp && sp !== c) { tx = sp.x; ty = sp.y; c.packTarget = sp; c.status = 'STALKING'; }
       }
-
-      // Scavenge corpses (easy energy)
+      // Mating prey
       if (tx === null) {
-        const nearCorpse = findNearest(c, corpses, c.dna.sense);
-        if (nearCorpse) { tx = nearCorpse.x; ty = nearCorpse.y; }
+        const pp = findInCone(c, lists.mating || [], CONE_RANGE, CONE_ARC);
+        if (pp) { tx = pp.x; ty = pp.y; c.packTarget = pp; c.status = 'HUNTING MATING PREY'; }
       }
-
+      // Cannibalism (weak young carnivore)
       if (tx === null) {
-        const prey = findNearest(c,
-          creatures.filter(o => o.alive && o.dna.type === 'herbivore'),
-          c.dna.sense);
-        if (prey) { tx = prey.x; ty = prey.y; }
+        const wc = findInCone(c, (lists.carns || []).filter(o => o !== c && o.energy < 30 && o.age < c.age*0.5), CONE_RANGE, CONE_ARC);
+        if (wc) { tx = wc.x; ty = wc.y; c.packTarget = wc; c.status = 'CANNIBALISING'; }
       }
-
-      // Follow herbivore pheromone trail when no visible prey — sniff them out
+      // Sleeping omnivore is fair game
+      if (tx === null) {
+        const so = findInCone(c, (lists.omnis || []).filter(o => o.sleeping), CONE_RANGE, CONE_ARC);
+        if (so) { tx = so.x; ty = so.y; c.packTarget = so; c.status = 'HUNTING OMNIVORE'; }
+      }
+      // Weak omnivore <10% energy
+      if (tx === null) {
+        const wo = findInCone(c, (lists.omnis || []).filter(o => o.energy < 30), CONE_RANGE, CONE_ARC);
+        if (wo) { tx = wo.x; ty = wo.y; c.packTarget = wo; c.status = 'HUNTING OMNIVORE'; }
+      }
+      // Corpses
+      if (tx === null) {
+        const nc = findNearest(c, corpses, c.dna.sense);
+        if (nc) { tx = nc.x; ty = nc.y; c.packTarget = null; c.status = 'SCAVENGING'; }
+      }
+      // Herbivores in cone
+      if (tx === null) {
+        const prey = findInCone(c, lists.herbs || [], CONE_RANGE, CONE_ARC);
+        if (prey) { tx = prey.x; ty = prey.y; c.packTarget = prey; c.status = 'CHASING'; }
+      }
+      // Follow pheromone trail
       if (tx === null && pheroHerb) {
         const grad = pheroGradient(pheroHerb, c.x, c.y);
         const mag  = Math.sqrt(grad.dx*grad.dx + grad.dy*grad.dy);
         if (mag > 0.03) {
-          c.vx += (grad.dx/mag) * 0.3;
-          c.vy += (grad.dy/mag) * 0.3;
-        }
-      }
+          c.vx += (grad.dx/mag) * 0.3; c.vy += (grad.dy/mag) * 0.3;
+          c.packTarget = null; c.status = 'TRACKING SCENT';
+        } else { c.packTarget = null; c.status = 'PATROLLING'; }
+      } else if (tx === null) { c.packTarget = null; c.status = 'PATROLLING'; }
 
-      // Seek mate when eligible even while not sated (if no prey nearby)
       if (tx === null && mateElig) {
         const mate = findNearest(c,
-          creatures.filter(o => o.alive && o !== c && o.dna.type === 'carnivore' &&
-                                o.energy >= MATE_ENERGY && o.matingCooldown === 0 &&
-                                !o.matingWith && o.mateCount < MAX_MATES),
+          (lists.carns || []).filter(o => o !== c &&
+            o.energy >= MATE_ENERGY && o.matingCooldown === 0 && !o.matingWith && o.mateCount < MAX_MATES),
           c.dna.sense * 0.5);
-        if (mate) { tx = mate.x; ty = mate.y; }
+        if (mate) { tx = mate.x; ty = mate.y; c.status = 'SEEKING MATE'; }
       }
     }
   }
@@ -749,9 +872,9 @@ function updateCreature(c) {
     cohX += o.x; cohY += o.y; cohN++;
   }
 
-  const fs = params.flockStr / 10; // 0=off, 1=default, 2=max
+  const fs = params.flockStr / 10;
   if (c.dna.type === 'herbivore') {
-    // Herbivores flock strongly — safety in numbers
+    // Herbivore flocking — safety in numbers
     if (sepN > 0) { c.vx += (sepX/sepN) * 0.35 * fs; c.vy += (sepY/sepN) * 0.35 * fs; }
     if (aliN > 0) { c.vx += (aliX/aliN - c.vx) * 0.08 * fs; c.vy += (aliY/aliN - c.vy) * 0.08 * fs; }
     if (cohN > 0) {
@@ -759,24 +882,72 @@ function updateCreature(c) {
       const cd = Math.sqrt(cx*cx+cy*cy)+0.001;
       if (tx === null) { c.vx += (cx/cd) * 0.12 * fs; c.vy += (cy/cd) * 0.12 * fs; }
     }
+    // Shepherd pull: if a nearby sated omnivore is shepherding, be drawn toward it
+    const lists = window._simLists || {};
+    const shepherd = findNearest(c,
+      (lists.omnis || []).filter(o => o.alive && o.energy >= 270),
+      c.dna.sense * 1.6);
+    if (shepherd) {
+      const sdx = shepherd.x - c.x, sdy = shepherd.y - c.y;
+      const sd  = Math.sqrt(sdx*sdx+sdy*sdy)+0.001;
+      const shepherdPull = fs * 0.22; // stronger than normal flock cohesion
+      c.vx += (sdx/sd) * shepherdPull; c.vy += (sdy/sd) * shepherdPull;
+      // Shepherded herbivores share the omnivore's cone vision range (boosted)
+      c._shepherdRef  = shepherd; // keep reference so we can draw the distinction
+      c._shepherdVision = shepherd.dna.sense * 2.4;
+    } else {
+      c._shepherdVision = null;
+      c._shepherdRef    = null;
+    }
+  } else if (c.dna.type === 'omnivore') {
+    // Omnivores flock loosely with own kind — mild separation only
+    if (sepN > 0) { c.vx += (sepX/sepN) * 0.3 * fs; c.vy += (sepY/sepN) * 0.3 * fs; }
+    if (aliN > 0) { c.vx += (aliX/aliN - c.vx) * 0.05 * fs; c.vy += (aliY/aliN - c.vy) * 0.05 * fs; }
   } else {
-    // Carnivores spread out — avoid competing with packmates for same prey
+    // Carnivores spread out
     if (sepN > 0) { c.vx += (sepX/sepN) * 0.5 * fs; c.vy += (sepY/sepN) * 0.5 * fs; }
     if (aliN > 0) { c.vx += (aliX/aliN - c.vx) * 0.04 * fs; c.vy += (aliY/aliN - c.vy) * 0.04 * fs; }
   }
 
+  // Sprint: carnivores/omnivores chasing prey burn ENERGY for speed boost
+  // stamina gene = efficiency multiplier; low stamina = more energy per sprint tick
+  let maxSpd = c.dna.speed;
+  const canSprint = (c.dna.type === 'carnivore' || c.dna.type === 'omnivore')
+                    && tx !== null && c.energy > 40  // need >13% energy to sprint
+                    && (c.status === 'CHASING' || c.status === 'STALKING'
+                        || c.status === 'PACK FLANKING' || c.status === 'HUNTING MATING PREY'
+                        || c.status === 'CANNIBALISING');
+  if (canSprint) {
+    maxSpd = c.dna.speed * 1.6;
+    // Energy cost: base 0.08 per tick, divided by stamina gene (0.1–1.0)
+    // Low stamina = more expensive sprint; high stamina = efficient
+    const sprintCost = 0.08 / Math.max(0.1, c.dna.stamina);
+    c.energy -= sprintCost;
+    c.sprinting = true;
+  }
+
   const spd = Math.sqrt(c.vx*c.vx + c.vy*c.vy);
-  if (spd > c.dna.speed) { c.vx = (c.vx/spd)*c.dna.speed; c.vy = (c.vy/spd)*c.dna.speed; }
+  if (spd > maxSpd) { c.vx = (c.vx/spd)*maxSpd; c.vy = (c.vy/spd)*maxSpd; }
   c.x += c.vx; c.y += c.vy;
   if (c.x < 0) c.x += W; if (c.x > W) c.x -= W;
   if (c.y < 0) c.y += H; if (c.y > H) c.y -= H;
 
-  // Herbivores eat food only when below sated threshold
-  if (c.dna.type === 'herbivore' && !isSated) {
+  // Herbivores and omnivores eat food when below sated threshold
+  if ((c.dna.type === 'herbivore' || c.dna.type === 'omnivore') && !isSated) {
     for (let i = foods.length - 1; i >= 0; i--) {
       if (dist(c, foods[i]) < c.dna.size + 4) {
         c.energy += foods[i].energy;
         foods.splice(i, 1);
+        break;
+      }
+    }
+  }
+  // Omnivores scavenge corpses (all types)
+  if (c.dna.type === 'omnivore' && !isSated) {
+    for (let i = corpses.length - 1; i >= 0; i--) {
+      if (dist(c, corpses[i]) < c.dna.size + 5) {
+        c.energy += corpses[i].energy;
+        corpses.splice(i, 1);
         break;
       }
     }
@@ -787,15 +958,14 @@ function updateCreature(c) {
     let ate = false;
     for (const prey of creatures) {
       if (!prey.alive || prey === c) continue;
-      const isPurple    = prey.matingWith !== null;
-      const isHerbivore = prey.dna.type === 'herbivore';
-      const isSleeping  = prey.sleeping;
-      // Can eat: purple/mating prey, herbivores, sleeping creatures
-      // Cannibalism: eat carnivore only if it's <10% energy AND age < half attacker age
+      const isPurple       = prey.matingWith !== null;
+      const isHerbivore    = prey.dna.type === 'herbivore';
+      const isSleeping     = prey.sleeping;
       const isWeakCarnivore = prey.dna.type === 'carnivore'
-                              && prey.energy < 30          // <10% of 300
-                              && prey.age < c.age * 0.5;   // less than half attacker's age
-      const edible = isPurple || isHerbivore || isSleeping || isWeakCarnivore;
+                              && prey.energy < 30 && prey.age < c.age * 0.5;
+      const isVulnOmnivore = prey.dna.type === 'omnivore'
+                              && (prey.sleeping || prey.energy < 30);
+      const edible = isPurple || isHerbivore || (isSleeping && prey !== c) || isWeakCarnivore || isVulnOmnivore;
       if (edible && dist(c, prey) < c.dna.size + prey.dna.size) {
         c.energy += prey.energy * 0.6;
         if (prey.matingWith) { prey.matingWith.matingWith = null; prey.matingWith.matingTicks = 0; }
@@ -831,15 +1001,19 @@ function updateCreature(c) {
     }
   }
 
-  // Initiate mating — requires 80%+ energy, under 3 prior matings, both partners eligible, not sleeping
+  // Initiate mating — requires 80%+ energy, under retirement limit, not sleeping
   if (mateElig && !c.sleeping && c.wakeScatter === 0) {
-    for (const other of creatures) {
-      if (!other.alive || other === c || other.dna.type !== c.dna.type) continue;
-      if (other.matingWith || other.matingCooldown > 0 || other.mateCount >= MAX_MATES) continue;
-      if (other.energy < MATE_ENERGY) continue;
+    const lists = window._simLists || {};
+    const sameType = (c.dna.type === 'herbivore' ? lists.herbs
+                    : c.dna.type === 'carnivore' ? lists.carns
+                    : lists.omnis) || [];
+    for (const other of sameType) {
+      if (other === c || other.matingWith || other.matingCooldown > 0) continue;
+      const otherMax = other.dna.type === 'herbivore' ? 3 : 5;
+      if (other.mateCount >= otherMax || other.energy < MATE_ENERGY) continue;
       if (dist(c, other) < c.dna.size + other.dna.size + 5) {
-        c.matingWith     = other; c.matingTicks = 0;
-        other.matingWith = c;     other.matingTicks = 0;
+        c.matingWith = other; c.matingTicks = 0;
+        other.matingWith = c; other.matingTicks = 0;
         break;
       }
     }
@@ -876,11 +1050,23 @@ function updateSim() {
     for (const c of creatures) {
       if (!c.alive || c.sleeping) continue;
       if (c.dna.type === 'herbivore') depositPhero(pheroHerb, c.x, c.y, 0.18);
-      else                            depositPhero(pheroCarn, c.x, c.y, 0.18);
+      else if (c.dna.type === 'carnivore') depositPhero(pheroCarn, c.x, c.y, 0.18);
+      // Omnivores deposit on their own channel — distinct cyan, carnivores can still track
+      else if (c.dna.type === 'omnivore') depositPhero(pheroOmni, c.x, c.y, 0.18);
     }
     updatePhero(pheroHerb);
     updatePhero(pheroCarn);
+    updatePhero(pheroOmni);
   }
+
+  // Pre-build filtered lists once per tick for performance
+  const _alive      = creatures.filter(c => c.alive);
+  const _herbs      = _alive.filter(c => c.dna.type === 'herbivore');
+  const _carns      = _alive.filter(c => c.dna.type === 'carnivore');
+  const _omnis      = _alive.filter(c => c.dna.type === 'omnivore');
+  const _mating     = _alive.filter(c => c.matingWith !== null);
+  const _sleeping   = _alive.filter(c => c.sleeping);
+  window._simLists  = { alive: _alive, herbs: _herbs, carns: _carns, omnis: _omnis, mating: _mating, sleeping: _sleeping };
 
   for (const c of creatures) updateCreature(c);
 
@@ -890,17 +1076,20 @@ function updateSim() {
 
   creatures = creatures.filter(c => c.alive || (c.age++ < 60));
 
-  if (creatures.filter(c => c.dna.type === 'herbivore').length > 200)
+  if (creatures.filter(c => c.dna.type === 'herbivore').length > 500)
     creatures = creatures.filter(c => c.dna.type !== 'herbivore' || Math.random() > 0.1);
-  if (creatures.filter(c => c.dna.type === 'carnivore').length > 60)
+  if (creatures.filter(c => c.dna.type === 'carnivore').length > 500)
     creatures = creatures.filter(c => c.dna.type !== 'carnivore' || Math.random() > 0.1);
+  if (creatures.filter(c => c.dna.type === 'omnivore').length > 500)
+    creatures = creatures.filter(c => c.dna.type !== 'omnivore' || Math.random() > 0.1);
 
   if (tick % 60 === 0) {
     const alive = creatures.filter(c => c.alive);
     history.h.push(alive.filter(c => c.dna.type === 'herbivore').length);
     history.c.push(alive.filter(c => c.dna.type === 'carnivore').length);
+    history.o.push(alive.filter(c => c.dna.type === 'omnivore').length);
     history.f.push(foods.length);
-    if (history.h.length > MAX_HISTORY) { history.h.shift(); history.c.shift(); history.f.shift(); }
+    if (history.h.length > MAX_HISTORY) { history.h.shift(); history.c.shift(); history.o.shift(); history.f.shift(); }
   }
 }
 
@@ -911,6 +1100,7 @@ function drawCreature(c) {
   if (alpha <= 0) return;
 
   const isH      = c.dna.type === 'herbivore';
+  const isO      = c.dna.type === 'omnivore';
   const isMating = alive && c.matingWith !== null;
   const r        = c.dna.size;
 
@@ -921,12 +1111,14 @@ function drawCreature(c) {
 
   // Base hue per type: mating=267(purple), herbivore=168(teal), carnivore=348(red)
   const isSleepingDraw = alive && c.sleeping;
-  const hue = isMating ? 267 : isSleepingDraw ? 220 : (isH ? 168 : 348);
+  const hue = isMating ? 267 : isSleepingDraw ? 220 : (isH ? 168 : isO ? 185 : 348);
+  // glowRGB per type for rgba() calls
+  const typeGlowRGB = isH ? '0,245,196' : isO ? '0,220,180' : '255,77,109';
   const baseColor  = alive ? `hsl(${hue},${sat}%,${lit}%)` : '#2a2a3a';
   const glowColor  = alive ? `hsl(${hue},${sat}%,${lit}%)` : '#444';
   // Extract approximate RGB for rgba() glow uses
-  const glowRGB    = alive ? (isMating ? '162,155,254' : (isH ? '0,245,196' : '255,77,109')) : '68,68,68';
-  const trailColor = isMating ? `hsla(267,${sat}%,${lit}%,0.2)` : (isH ? `hsla(168,${sat}%,${lit}%,0.15)` : `hsla(348,${sat}%,${lit}%,0.15)`);
+  const glowRGB    = alive ? (isMating ? '162,155,254' : typeGlowRGB) : '68,68,68';
+  const trailColor = isMating ? `hsla(267,${sat}%,${lit}%,0.2)` : `hsla(${hue},${sat}%,${lit}%,0.15)`;
 
   ctx.save();
   ctx.globalAlpha = alpha;
@@ -941,14 +1133,45 @@ function drawCreature(c) {
     ctx.stroke();
   }
 
-  // Sense radius (selected only)
+  // Vision indicator (selected only)
   if (c === selectedCreature && alive) {
-    ctx.beginPath();
-    ctx.arc(c.x, c.y, c.dna.sense, 0, Math.PI * 2);
-    ctx.strokeStyle = `rgba(${glowRGB},0.1)`;
-    ctx.lineWidth = 1;
+    const heading = Math.atan2(c.vy, c.vx);
     ctx.setLineDash([3, 5]);
-    ctx.stroke();
+    if (isH) {
+      // Own sense circle — always shown at agent's actual range
+      ctx.beginPath(); ctx.arc(c.x, c.y, c.dna.sense, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(${glowRGB},0.15)`; ctx.lineWidth = 1; ctx.stroke();
+      // Shepherd-boosted vision — outer ring in omnivore cyan, dashed, translucent
+      if (c._shepherdVision) {
+        ctx.setLineDash([5, 7]);
+        ctx.beginPath(); ctx.arc(c.x, c.y, c._shepherdVision, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(0,220,255,0.22)`;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.setLineDash([3, 5]); // restore for rest of vision block
+      }
+    } else if (isO) {
+      // Omnivore: cone + circle (dual)
+      const coneRange = c.dna.sense * 1.8;
+      ctx.beginPath(); ctx.moveTo(c.x, c.y);
+      ctx.arc(c.x, c.y, coneRange, heading - Math.PI/3, heading + Math.PI/3);
+      ctx.closePath();
+      ctx.strokeStyle = `rgba(${glowRGB},0.12)`; ctx.fillStyle = `rgba(${glowRGB},0.04)`;
+      ctx.lineWidth = 1; ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.arc(c.x, c.y, c.dna.sense * 0.6, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(${glowRGB},0.08)`; ctx.setLineDash([2,6]); ctx.stroke();
+    } else {
+      // Carnivore: cone only
+      const coneRange = c.dna.sense * 1.8;
+      ctx.beginPath(); ctx.moveTo(c.x, c.y);
+      ctx.arc(c.x, c.y, coneRange, heading - Math.PI/3, heading + Math.PI/3);
+      ctx.closePath();
+      ctx.strokeStyle = `rgba(${glowRGB},0.12)`; ctx.fillStyle = `rgba(${glowRGB},0.04)`;
+      ctx.lineWidth = 1; ctx.fill(); ctx.stroke();
+      ctx.setLineDash([2,6]);
+      ctx.beginPath(); ctx.arc(c.x, c.y, c.dna.sense * 0.4, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(${glowRGB},0.07)`; ctx.stroke();
+    }
     ctx.setLineDash([]);
   }
 
@@ -1009,13 +1232,30 @@ function drawCreature(c) {
   // Body
   ctx.beginPath();
   if (isH) {
+    // Hexagon
     for (let i = 0; i < 6; i++) {
       const angle = (i / 6) * Math.PI * 2 - Math.PI / 6;
       const px = c.x + Math.cos(angle) * r, py = c.y + Math.sin(angle) * r;
       i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
     }
     ctx.closePath();
+  } else if (isO) {
+    // Circle (omnivore)
+    ctx.arc(c.x, c.y, r, 0, Math.PI * 2);
+    // Shepherd ring if sated
+    if (alive && c.energy >= 270) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, r * 3.5 + Math.sin(tick * 0.05) * 2, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(0,220,180,${0.12 + 0.08 * Math.sin(tick*0.05)})`;
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4,6]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+    }
   } else {
+    // Diamond (carnivore)
     ctx.moveTo(c.x,     c.y - r * 1.3);
     ctx.lineTo(c.x + r, c.y);
     ctx.lineTo(c.x,     c.y + r * 1.3);
@@ -1037,9 +1277,18 @@ function drawCreature(c) {
     ctx.stroke();
   }
 
-  // Direction nub
+  // Direction nub + sprint streak
   if (alive) {
     const angle = Math.atan2(c.vy, c.vx);
+    if (c.sprinting) {
+      // Orange motion streak behind the carnivore
+      ctx.beginPath();
+      ctx.moveTo(c.x, c.y);
+      ctx.lineTo(c.x - Math.cos(angle) * r * 4, c.y - Math.sin(angle) * r * 4);
+      ctx.strokeStyle = `rgba(255,160,50,${0.3 + c.staminaCur * 0.4})`;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
     ctx.beginPath();
     ctx.moveTo(c.x, c.y);
     ctx.lineTo(c.x + Math.cos(angle) * r * 1.8, c.y + Math.sin(angle) * r * 1.8);
@@ -1119,6 +1368,7 @@ function drawChart() {
   };
   line(history.h, '#00f5c4');
   line(history.c, '#ff4d6d');
+  line(history.o, '#00dce0');
   line(history.f, '#ffd166');
 }
 
@@ -1134,13 +1384,18 @@ function render() {
       for (let gx = 0; gx < pheroW; gx++) {
         const hi = pheroHerb[pheroIdx(gx, gy)];
         const ci = pheroCarn[pheroIdx(gx, gy)];
+        const oi = pheroOmni ? pheroOmni[pheroIdx(gx, gy)] : 0;
         const px = gx * PHERO_CELL, py = gy * PHERO_CELL;
         if (hi > 0.03) {
-          ctx.fillStyle = `rgba(0,245,196,${(hi * 0.25).toFixed(3)})`;
+          ctx.fillStyle = `rgba(0,245,196,${(hi * 0.25).toFixed(3)})`; // teal-green
+          ctx.fillRect(px, py, PHERO_CELL, PHERO_CELL);
+        }
+        if (oi > 0.03) {
+          ctx.fillStyle = `rgba(0,210,255,${(oi * 0.28).toFixed(3)})`; // distinct bright cyan
           ctx.fillRect(px, py, PHERO_CELL, PHERO_CELL);
         }
         if (ci > 0.03) {
-          ctx.fillStyle = `rgba(255,77,109,${(ci * 0.22).toFixed(3)})`;
+          ctx.fillStyle = `rgba(255,77,109,${(ci * 0.22).toFixed(3)})`; // red
           ctx.fillRect(px, py, PHERO_CELL, PHERO_CELL);
         }
       }
@@ -1167,6 +1422,7 @@ function updateUI() {
   const alive = creatures.filter(c => c.alive);
   document.getElementById('hPop').textContent   = alive.filter(c => c.dna.type === 'herbivore').length;
   document.getElementById('cPop').textContent   = alive.filter(c => c.dna.type === 'carnivore').length;
+  const oPop = document.getElementById('oPop'); if (oPop) oPop.textContent = alive.filter(c => c.dna.type === 'omnivore').length;
   document.getElementById('fPop').textContent   = foods.length;
   document.getElementById('genNum').textContent  = generation;
   document.getElementById('tickNum').textContent = tick;
@@ -1193,8 +1449,12 @@ function updateUI() {
                 : c.matingCooldown > 0
                   ? `<br><b style="color:#636e72">◌ COOLDOWN ${c.matingCooldown}</b>`
                   : '';
+      const staminaBar = (d.type === 'carnivore' || d.type === 'omnivore')
+        ? `<br><b>STAMINA:</b> <b style="opacity:0.5">gene ${(d.stamina??1).toFixed(2)}</b>${c.sprinting ? ' <b style="color:#ffa032">⚡ SPRINTING</b>' : ''}`
+        : '';
       info.innerHTML = `
         <b>TYPE:</b> ${d.type.toUpperCase()}<br>
+        <b>STATUS:</b> <b style="color:var(--accent)">${c.status || '—'}</b><br>
         <b>ENERGY:</b> ${Math.round(c.energy)} <b style="opacity:0.5">(${energyPct}%)</b><br>
         <b>AGE:</b> ${c.age}<br>
         <b>GEN:</b> ${c.gen}<br>
@@ -1202,11 +1462,11 @@ function updateUI() {
         <br>
         <b>— GENOME —</b><br>
         <b>SPEED:</b> ${d.speed.toFixed(2)}<br>
-        <b>SENSE:</b> ${Math.round(d.sense)}<br>
+        <b>SENSE:</b> ${Math.round(d.sense)}${d.type==='carnivore' ? ' <b style="opacity:0.4">(cone)</b>' : ''}<br>
         <b>SIZE:</b> ${d.size.toFixed(2)}<br>
         <b>FERTILITY:</b> ${(d.fertility*1000).toFixed(2)}‰<br>
         <b>METABOLISM:</b> ${d.metabolism.toFixed(3)}<br>
-        <b>AGGRESSION:</b> ${d.aggression.toFixed(2)}${stateTag}
+        <b>AGGRESSION:</b> ${d.aggression.toFixed(2)}${staminaBar}${stateTag}
       `;
     }
   }
@@ -1301,9 +1561,11 @@ function setQty(n) {
   const plural = s => n === 1 ? '' : 'S';
   document.getElementById('spawnHlbl').textContent = n;
   document.getElementById('spawnClbl').textContent = n;
+  document.getElementById('spawnOlbl').textContent = n;
   document.getElementById('spawnFlbl').textContent = n;
   document.getElementById('spawnHs').textContent = plural('S');
   document.getElementById('spawnCs').textContent = plural('S');
+  document.getElementById('spawnOs').textContent = plural('S');
 }
 </script>
 </body>
