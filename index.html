@@ -2491,7 +2491,7 @@ function updateUI() {
       if (cnt === 0) continue;
       const cell = document.createElement('div');
       cell.className = 'species-cell';
-      cell.title = `Click to highlight species | Shift+click to spawn (${sp.type}, ${sp.id.slice(3,8)})`;
+      cell.title = `Click to highlight | + spawn | − kill one (${sp.type}, ${sp.id.slice(3,8)})`;
       // Use data attribute + global handler — avoids closure/DOM timing issues
       cell.dataset.sid = sp.id;
       // No per-cell listener — handled by delegation on #speciesGrid
@@ -2511,6 +2511,22 @@ function updateUI() {
       const lbl = document.createElement('div');
       lbl.textContent = cnt;
       cell.appendChild(lbl);
+      // +/- buttons row
+      const btnRow = document.createElement('div');
+      btnRow.style.cssText = 'display:flex;gap:2px;margin-top:2px;width:100%;';
+      const minusBtn = document.createElement('button');
+      minusBtn.textContent = '−';
+      minusBtn.dataset.action = 'kill';
+      minusBtn.dataset.sid = sp.id;
+      minusBtn.style.cssText = 'flex:1;font-size:9px;padding:1px 0;border:1px solid rgba(255,77,109,0.35);background:transparent;color:rgba(255,77,109,0.7);cursor:pointer;font-family:monospace;border-radius:1px;';
+      const plusBtn = document.createElement('button');
+      plusBtn.textContent = '+';
+      plusBtn.dataset.action = 'spawn';
+      plusBtn.dataset.sid = sp.id;
+      plusBtn.style.cssText = 'flex:1;font-size:9px;padding:1px 0;border:1px solid rgba(0,245,196,0.35);background:transparent;color:rgba(0,245,196,0.7);cursor:pointer;font-family:monospace;border-radius:1px;';
+      btnRow.appendChild(minusBtn);
+      btnRow.appendChild(plusBtn);
+      cell.appendChild(btnRow);
       // Re-apply highlight if this was the selected species
       if (selectedSpeciesId === sp.id) cell.classList.add('selected-species');
       grid.appendChild(cell);
@@ -2753,19 +2769,35 @@ resetSim();
 loop();
 
 // ── Species grid event delegation ─────────────────────────────────────────────
-// Using delegation on the parent so clicks always register even after innerHTML rebuild
 document.getElementById('speciesGrid').addEventListener('click', function(e) {
+  // +/- buttons
+  const btn = e.target.closest('button[data-action]');
+  if (btn) {
+    e.stopPropagation();
+    const sid = btn.dataset.sid;
+    if (btn.dataset.action === 'spawn') {
+      spawnFromSpecies(sid);
+    } else if (btn.dataset.action === 'kill') {
+      // Randomly kill one alive creature of this species
+      const candidates = creatures.filter(c => c.alive && c.speciesId === sid);
+      if (candidates.length > 0) {
+        const victim = candidates[Math.floor(Math.random() * candidates.length)];
+        victim.alive = false;
+        corpses.push({ x: victim.x, y: victim.y, energy: 0, decay: 0, fromType: victim.dna.type });
+      }
+    }
+    return;
+  }
+  // Cell highlight (clicking icon/count area)
   const cell = e.target.closest('.species-cell');
   if (!cell) return;
   const sid = cell.dataset.sid;
   if (!sid) return;
-  if (e.shiftKey) { spawnFromSpecies(sid); return; }
   if (selectedSpeciesId === sid) {
     selectedSpeciesId = null;
   } else {
     selectedSpeciesId = sid;
   }
-  // Visual highlight update
   document.querySelectorAll('.species-cell').forEach(c2 => {
     c2.classList.toggle('selected-species', c2.dataset.sid === selectedSpeciesId);
   });
