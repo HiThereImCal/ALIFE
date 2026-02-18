@@ -242,6 +242,87 @@
     background: rgba(255,209,102,0.12) !important;
     box-shadow: 0 0 8px rgba(255,209,102,0.3);
   }
+
+  /* ── Deus Ex Machina panel ───────────────────────────────────────────────── */
+  .deus-section {
+    border-bottom: 1px solid var(--border);
+    padding: 12px;
+    background: rgba(255,77,109,0.03);
+  }
+  .deus-title {
+    font-family: 'Syncopate', sans-serif;
+    font-size: 8px; letter-spacing: 3px;
+    color: var(--accent2); margin-bottom: 10px;
+    text-transform: uppercase;
+    text-shadow: 0 0 10px rgba(255,77,109,0.4);
+  }
+  .deus-subtitle {
+    font-size: 8px; letter-spacing: 2px; color: var(--text);
+    opacity: 0.6; margin-bottom: 6px; margin-top: 8px;
+    text-transform: uppercase;
+  }
+  .btn.deus {
+    border-color: rgba(255,77,109,0.3);
+    color: rgba(255,180,180,0.85);
+  }
+  .btn.deus:hover {
+    border-color: var(--accent2); color: var(--accent2);
+    background: rgba(255,77,109,0.07);
+    box-shadow: 0 0 10px rgba(255,77,109,0.2);
+  }
+  .btn.deus.armed {
+    border-color: var(--accent2) !important;
+    color: var(--accent2) !important;
+    background: rgba(255,77,109,0.15) !important;
+    box-shadow: 0 0 14px rgba(255,77,109,0.4) !important;
+    animation: pulse-red 0.8s ease-in-out infinite alternate;
+  }
+  .btn.deus.active-event {
+    border-color: #c084fc !important;
+    color: #c084fc !important;
+    background: rgba(192,132,252,0.1) !important;
+  }
+  @keyframes pulse-red {
+    from { box-shadow: 0 0 8px rgba(255,77,109,0.3); }
+    to   { box-shadow: 0 0 20px rgba(255,77,109,0.7); }
+  }
+
+  /* Mutation nudge rows */
+  .mut-row {
+    display: flex; align-items: center; gap: 4px;
+    margin-bottom: 4px;
+  }
+  .mut-label {
+    font-size: 8px; letter-spacing: 1px; color: var(--text);
+    flex: 1; text-transform: uppercase;
+  }
+  .mut-btn {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px; width: 22px; height: 22px;
+    border: 1px solid var(--border); background: transparent;
+    color: var(--text-bright); cursor: pointer;
+    transition: all 0.12s; display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .mut-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(0,245,196,0.07); }
+  .mut-btn.minus:hover { border-color: var(--accent2); color: var(--accent2); background: rgba(255,77,109,0.07); }
+
+  /* Type selector tabs for mutations */
+  .type-tabs {
+    display: flex; gap: 4px; margin-bottom: 8px;
+  }
+  .type-tab {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 8px; letter-spacing: 1px;
+    border: 1px solid var(--border); background: transparent;
+    color: var(--text); padding: 4px 6px; cursor: pointer;
+    transition: all 0.12s; flex: 1; text-align: center;
+    text-transform: uppercase;
+  }
+  .type-tab.active { border-color: var(--accent); color: var(--accent); background: rgba(0,245,196,0.08); }
+  .type-tab.herb.active  { border-color: #00f5c4; color: #00f5c4; background: rgba(0,245,196,0.08); }
+  .type-tab.carn.active  { border-color: #ff4d6d; color: #ff4d6d; background: rgba(255,77,109,0.08); }
+  .type-tab.omni.active  { border-color: #2bbcff; color: #2bbcff; background: rgba(43,188,255,0.08); }
 </style>
 </head>
 <body>
@@ -359,8 +440,52 @@
       <div class="section-title">Selection Info</div>
       <div class="info-box" id="infoBox"><b>Click a creature</b> to inspect its genes and status.</div>
     </div>
-  </div>
-</div>
+
+    <!-- ── DEUS EX MACHINA ──────────────────────────────────────────────────── -->
+    <div class="deus-section">
+      <div class="deus-title">⚡ Deus Ex Machina</div>
+
+      <div class="deus-subtitle">— Seasons —</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:2px;">
+        <button class="btn deus" style="margin-bottom:0;font-size:9px;padding:5px 4px;" onclick="deusSetSeason(0)">🌱 SPRING</button>
+        <button class="btn deus" style="margin-bottom:0;font-size:9px;padding:5px 4px;" onclick="deusSetSeason(1)">☀️ SUMMER</button>
+        <button class="btn deus" style="margin-bottom:0;font-size:9px;padding:5px 4px;" onclick="deusSetSeason(2)">🍂 AUTUMN</button>
+        <button class="btn deus" style="margin-bottom:0;font-size:9px;padding:5px 4px;" onclick="deusSetSeason(3)">❄️ WINTER</button>
+      </div>
+      <button class="btn deus" id="longWinterBtn" onclick="deusLongWinter()" style="font-size:9px;margin-top:4px;">🧊 TRIGGER LONG WINTER</button>
+
+      <div class="deus-subtitle">— Weather —</div>
+      <button class="btn deus" id="randomWeatherBtn" onclick="toggleRandomWeather()" style="font-size:9px;">🎲 RANDOM EVENTS: OFF</button>
+      <button class="btn deus" id="deusdroughtBtn"  onclick="deusTriggerWeather('DROUGHT')"        style="font-size:9px;">🔥 DROUGHT</button>
+      <button class="btn deus" id="deusplagueBtn"   onclick="deusTriggerWeather('PLAGUE WIND')"    style="font-size:9px;">💨 PLAGUE WIND</button>
+      <button class="btn deus" id="deusfrenzywBtn"  onclick="deusTriggerWeather('FEEDING FRENZY')" style="font-size:9px;">⚡ FEEDING FRENZY</button>
+      <button class="btn deus" id="deusblizzardBtn" onclick="deusTriggerWeather('BLIZZARD')"       style="font-size:9px;">🌨️ BLIZZARD</button>
+      <button class="btn deus" id="deustoxicBtn"    onclick="deusTriggerWeather('TOXIC RAIN')"     style="font-size:9px;">☠️ TOXIC RAIN</button>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:6px;">
+        <button class="btn deus" id="clearWeatherBtn" onclick="deusClearWeather()" style="font-size:9px;margin-bottom:0;">✕ CLEAR</button>
+        <button class="btn deus" id="clearToxicBtn"   onclick="deusClearToxic()"   style="font-size:9px;margin-bottom:0;">🧹 PURGE TOXIC</button>
+      </div>
+
+      <div class="deus-subtitle">— Catastrophes —</div>
+      <button class="btn deus" id="meteorBtn"   onclick="deusArmMeteor()"   style="font-size:9px;">☄️ METEOR STRIKE <span style="opacity:0.5;font-size:8px;">[click canvas]</span></button>
+      <button class="btn deus" id="frenzyCBtn"  onclick="deusFrenzy()"      style="font-size:9px;">🩸 CARNIVORE FRENZY</button>
+
+      <div class="deus-subtitle">— Divine Intervention —</div>
+      <button class="btn deus" id="championBtn"  onclick="deusArmChampion()"  style="font-size:9px;">👑 CHAMPION <span style="opacity:0.5;font-size:8px;">[click creature]</span></button>
+      <button class="btn deus" id="teleportBtn"  onclick="deusArmTeleport()"  style="font-size:9px;">🌀 TELEPORT <span style="opacity:0.5;font-size:8px;">[click creature→place]</span></button>
+
+      <div class="deus-subtitle">— Targeted Mutations —</div>
+      <div class="type-tabs">
+        <button class="type-tab herb active" id="mutTabHerb" onclick="setMutTab('herbivore')">HERB</button>
+        <button class="type-tab carn"        id="mutTabCarn" onclick="setMutTab('carnivore')">CARN</button>
+        <button class="type-tab omni"        id="mutTabOmni" onclick="setMutTab('omnivore')">OMNI</button>
+      </div>
+      <div id="mutRows">
+        <!-- Populated by JS -->
+      </div>
+    </div>
+  </div><!-- end .panel -->
+</div><!-- end .main -->
 
 <footer>
   <span>ARTIFICIAL LIFE SIMULATOR — EVOLUTIONARY GENETICS ENGINE</span>
@@ -474,6 +599,21 @@ let playing = true;
 let speed = 1;
 let selectedCreature = null;
 let corpses = [];
+
+// ── Deus Ex Machina state ─────────────────────────────────────────────────────
+let deusMode = null;           // 'meteor' | 'champion' | 'teleport-pick' | 'teleport-place'
+let deusTeleportCreature = null; // creature waiting to be teleported
+let meteors = [];              // { x, y, countdown, maxCountdown } pending impacts
+let craters = [];              // { x, y, r, age } scorched zones blocking food growth
+const METEOR_COUNTDOWN = 120;  // ticks of warning before impact
+const METEOR_RADIUS    = 80;   // kill radius on impact
+const CRATER_DURATION  = 900;  // ticks before crater fades
+let longWinterActive   = false;
+let longWinterTicks    = 0;
+let frenziedTicks      = 0;    // carnivore frenzy duration remaining
+let toxicRainActive    = false; // food spawned is toxic
+let mutTargetType      = 'herbivore'; // which type the mutation nudges target
+let randomWeatherEnabled = false;    // whether random weather events fire automatically
 
 // ── Pheromone grids ───────────────────────────────────────────────────────────
 const PHERO_CELL = 8;        // pixels per grid cell
@@ -663,6 +803,7 @@ const WEATHER_EVENTS = [
   { name: 'PLAGUE WIND',    emoji: '💨', color: '#c084fc', foodMult: 1.0,  metaMult: 1.5,  duration: 600,  desc: 'A toxic wind raises metabolism across the ecosystem.' },
   { name: 'FEEDING FRENZY', emoji: '⚡', color: '#00f5c4', foodMult: 2.8,  metaMult: 0.9,  duration: 450,  desc: 'Food explodes. Populations surge — then crash.' },
   { name: 'BLIZZARD',       emoji: '🌨️', color: '#7dd3fc', foodMult: 0.05, metaMult: 1.6,  duration: 600,  desc: 'Near-zero food. Metabolism spikes. Only the fat survive.' },
+  { name: 'TOXIC RAIN',     emoji: '☠️', color: '#a3e635', foodMult: 1.8,  metaMult: 1.0,  duration: 500,  desc: 'Food blooms but poisons all who eat it. Carnivores thrive.' },
 ];
 let activeWeather = null;    // { event, ticksLeft }
 let weatherCooldown = 800;   // ticks until next possible event
@@ -734,11 +875,12 @@ function createCreature(type, x, y, dna) {
   return c;
 }
 
-function createFood(x, y) {
+function createFood(x, y, toxic) {
   return {
     x:      x ?? Math.random() * canvas.width,
     y:      y ?? Math.random() * canvas.height,
     energy: 20 + Math.random() * 30,
+    toxic:  toxic || false,
   };
 }
 
@@ -763,6 +905,15 @@ function resetSim() {
   currentSeasonIdx = 0; seasonTick = 0;
   activeWeather = null; weatherCooldown = 800;
   selectedSpeciesId = null;
+  // Deus state
+  deusMode = null; deusTeleportCreature = null;
+  meteors = []; craters = [];
+  longWinterActive = false; longWinterTicks = 0;
+  frenziedTicks = 0; toxicRainActive = false;
+  randomWeatherEnabled = false;
+  const rwBtn = document.getElementById('randomWeatherBtn');
+  if (rwBtn) { rwBtn.textContent = '🎲 RANDOM EVENTS: OFF'; rwBtn.classList.remove('active-event'); }
+  clearDeusArmed();
   for (let i = 0; i < 40; i++) creatures.push(createCreature('herbivore'));
   for (let i = 0; i < 10; i++) creatures.push(createCreature('carnivore'));
   for (let i = 0; i < 15; i++) creatures.push(createCreature('omnivore'));
@@ -1136,12 +1287,15 @@ function updateCreature(c) {
     const lists = window._simLists || {};
 
     // Avoid safe omnivores — keep distance unless sleeping, mating, or <20% energy
-    const safeOmni = gridNearest(c.x, c.y, sgCreatures, c.dna.sense * 0.7,
-      o => o !== c && o.dna.type === 'omnivore' && !o.sleeping && !o.matingWith && o.energy >= 60);
-    if (safeOmni) {
-      const dx = c.x - safeOmni.x, dy = c.y - safeOmni.y;
-      const d = Math.sqrt(dx*dx+dy*dy)+0.001;
-      c.vx += (dx/d) * 0.35; c.vy += (dy/d) * 0.35;
+    // During FRENZY this avoidance is completely suppressed
+    if (frenziedTicks <= 0) {
+      const safeOmni = gridNearest(c.x, c.y, sgCreatures, c.dna.sense * 0.7,
+        o => o !== c && o.dna.type === 'omnivore' && !o.sleeping && !o.matingWith && o.energy >= 60);
+      if (safeOmni) {
+        const dx = c.x - safeOmni.x, dy = c.y - safeOmni.y;
+        const d = Math.sqrt(dx*dx+dy*dy)+0.001;
+        c.vx += (dx/d) * 0.35; c.vy += (dy/d) * 0.35;
+      }
     }
 
     if (isSated) {
@@ -1189,12 +1343,12 @@ function updateCreature(c) {
           o => o !== c && o.alive && o.dna.type === 'carnivore' && o.energy < 30 && o.age < c.age*0.5);
         if (wc) { tx = wc.x; ty = wc.y; c.packTarget = wc; c.status = 'CANNIBALISING'; }
       }
-      // Vulnerable omnivore: sleeping, mating, or <10% energy
+      // Vulnerable omnivore: sleeping, mating, or <10% energy; OR any omnivore during FRENZY
       if (tx === null) {
         const vo = gridInCone(c.x,c.y,c.vx,c.vy, sgCreatures, CONE_RANGE, CONE_ARC,
           o => o !== c && o.alive && o.dna.type === 'omnivore'
-            && (o.sleeping || o.matingWith !== null || o.energy < 30));
-        if (vo) { tx = vo.x; ty = vo.y; c.packTarget = vo; c.status = 'HUNTING OMNIVORE'; }
+            && (frenziedTicks > 0 || o.sleeping || o.matingWith !== null || o.energy < 30));
+        if (vo) { tx = vo.x; ty = vo.y; c.packTarget = vo; c.status = frenziedTicks > 0 ? 'FRENZIED HUNT' : 'HUNTING OMNIVORE'; }
       }
       // Corpses (omnidirectional smell)
       if (tx === null) {
@@ -1362,8 +1516,13 @@ function updateCreature(c) {
   if ((c.dna.type === 'herbivore' || c.dna.type === 'omnivore') && !isSated) {
     for (let i = foods.length - 1; i >= 0; i--) {
       if (dist(c, foods[i]) < c.dna.size + 4) {
-        c.energy += foods[i].energy;
-        // Record memory of this food location
+        if (foods[i].toxic) {
+          // Toxic food: drains energy instead of restoring it
+          c.energy -= foods[i].energy * 0.8;
+        } else {
+          c.energy += foods[i].energy;
+        }
+        // Record memory of this food location (even if toxic — they learn)
         c.memFoodX = foods[i].x; c.memFoodY = foods[i].y; c.memFoodAge = 0;
         foods.splice(i, 1);
         break;
@@ -1399,7 +1558,7 @@ function updateCreature(c) {
       const isWeakCarnivore = prey.dna.type === 'carnivore'
                               && prey.energy < 30 && prey.age < c.age * 0.5;
       const isVulnOmnivore = prey.dna.type === 'omnivore'
-                              && (prey.sleeping || prey.matingWith !== null || prey.energy < 30);
+                              && (frenziedTicks > 0 || prey.sleeping || prey.matingWith !== null || prey.energy < 30);
       const edible = isPurple || isHerbivore || (isSleeping && prey !== c) || isWeakCarnivore || isVulnOmnivore;
       if (edible && dist(c, prey) < c.dna.size + prey.dna.size) {
         c.energy += prey.energy * 0.6;
@@ -1465,18 +1624,27 @@ function updateSim() {
   tick++;
 
   // ── Seasons ──────────────────────────────────────────────────────────────────
-  seasonTick++;
-  if (seasonTick >= SEASON_LENGTH) {
-    seasonTick = 0;
-    currentSeasonIdx = (currentSeasonIdx + 1) % 4;
-    const ns = SEASONS[currentSeasonIdx];
-    const seasonDescs = {
-      SPRING: 'Food blooms. Population surges incoming.',
-      SUMMER: 'Balanced conditions. The ecosystem breathes.',
-      AUTUMN: 'Food slows. Prepare for harder times.',
-      WINTER: 'Scarce food. High drain. Only the strong endure.',
-    };
-    showWeatherBanner(ns.emoji + ' ' + ns.name, ns.color, 180, seasonDescs[ns.name]);
+  if (longWinterActive) {
+    longWinterTicks--;
+    if (longWinterTicks <= 0) {
+      longWinterActive = false;
+      showWeatherBanner('❄️ LONG WINTER ENDS', '#a0b4f0', 120, 'The thaw has finally come.');
+      document.getElementById('longWinterBtn').classList.remove('active-event');
+    }
+  } else {
+    seasonTick++;
+    if (seasonTick >= SEASON_LENGTH) {
+      seasonTick = 0;
+      currentSeasonIdx = (currentSeasonIdx + 1) % 4;
+      const ns = SEASONS[currentSeasonIdx];
+      const seasonDescs = {
+        SPRING: 'Food blooms. Population surges incoming.',
+        SUMMER: 'Balanced conditions. The ecosystem breathes.',
+        AUTUMN: 'Food slows. Prepare for harder times.',
+        WINTER: 'Scarce food. High drain. Only the strong endure.',
+      };
+      showWeatherBanner(ns.emoji + ' ' + ns.name, ns.color, 180, seasonDescs[ns.name]);
+    }
   }
 
   // ── Weather events ─────────────────────────────────────────────────────────
@@ -1485,26 +1653,39 @@ function updateSim() {
     if (activeWeather.ticksLeft <= 0) {
       const endedName = activeWeather.event.name;
       activeWeather = null;
+      toxicRainActive = false;
       weatherCooldown = 600 + Math.floor(Math.random() * 800);
       showWeatherBanner('EVENT ENDED', '#8899bb', 80, endedName + ' HAS PASSED');
+      updateDeusWeatherButtons();
     }
-  } else {
+  } else if (randomWeatherEnabled) {
     if (weatherCooldown > 0) { weatherCooldown--; }
     else {
       // Only trigger certain events in matching seasons
       const ev = WEATHER_EVENTS[Math.floor(Math.random() * WEATHER_EVENTS.length)];
-      // Blizzard only in winter/autumn, drought only in summer/autumn
       const s = SEASONS[currentSeasonIdx].name;
       const valid = (ev.name === 'BLIZZARD' && (s === 'WINTER' || s === 'AUTUMN'))
                  || (ev.name === 'DROUGHT'  && (s === 'SUMMER' || s === 'AUTUMN'))
                  || (ev.name === 'FEEDING FRENZY' && (s === 'SPRING' || s === 'SUMMER'))
-                 || (ev.name === 'PLAGUE WIND');
+                 || (ev.name === 'PLAGUE WIND')
+                 || (ev.name === 'TOXIC RAIN');
       if (valid) {
         activeWeather = { event: ev, ticksLeft: ev.duration };
+        toxicRainActive = ev.name === 'TOXIC RAIN';
         showWeatherBanner(ev.emoji + ' ' + ev.name, ev.color, ev.duration, ev.desc);
+        updateDeusWeatherButtons();
       } else {
         weatherCooldown = 200; // retry soon
       }
+    }
+  }
+
+  // ── Frenzy tick ───────────────────────────────────────────────────────────
+  if (frenziedTicks > 0) {
+    frenziedTicks--;
+    if (frenziedTicks === 0) {
+      showWeatherBanner('🩸 FRENZY ENDS', '#ff4d6d', 60, 'Carnivores return to normal behaviour.');
+      document.getElementById('frenzyCBtn').classList.remove('active-event');
     }
   }
 
@@ -1529,9 +1710,13 @@ function updateSim() {
         const r = 10 + Math.random() * 50;
         const nx = parent.x + Math.cos(angle) * r;
         const ny = parent.y + Math.sin(angle) * r;
-        // Only sprout if within canvas bounds
+        // Only sprout if within canvas bounds and not in a crater
         if (nx > 0 && nx < canvas.width && ny > 0 && ny < canvas.height) {
-          foods.push(createFood(nx, ny));
+          const inCrater = craters.some(cr => {
+            const dx = nx - cr.x, dy = ny - cr.y;
+            return dx*dx + dy*dy < cr.r * cr.r;
+          });
+          if (!inCrater) foods.push(createFood(nx, ny, toxicRainActive));
         }
       }
     }
@@ -1550,8 +1735,11 @@ function updateSim() {
         const nx = s.x + Math.cos(angle) * r;
         const ny = s.y + Math.sin(angle) * r;
         if (nx > 0 && nx < canvas.width && ny > 0 && ny < canvas.height) {
-          foods.push(createFood(nx, ny));
-          s.spawned++;
+          const inCrater = craters.some(cr => {
+            const dx = nx - cr.x, dy = ny - cr.y;
+            return dx*dx + dy*dy < cr.r * cr.r;
+          });
+          if (!inCrater) { foods.push(createFood(nx, ny, toxicRainActive)); s.spawned++; }
         }
       }
     }
@@ -1584,6 +1772,37 @@ function updateSim() {
   const _mating     = _alive.filter(c => c.matingWith !== null);
   const _sleeping   = _alive.filter(c => c.sleeping);
   window._simLists  = { alive: _alive, herbs: _herbs, carns: _carns, omnis: _omnis, mating: _mating, sleeping: _sleeping };
+
+  // ── Meteors ───────────────────────────────────────────────────────────────
+  for (let mi = meteors.length - 1; mi >= 0; mi--) {
+    const m = meteors[mi];
+    m.countdown--;
+    if (m.countdown <= 0) {
+      // IMPACT — kill creatures in radius, remove food, leave crater
+      for (const c of creatures) {
+        if (!c.alive) continue;
+        const dx = c.x - m.x, dy = c.y - m.y;
+        if (dx*dx + dy*dy < METEOR_RADIUS * METEOR_RADIUS) {
+          c.alive = false;
+          corpses.push({ x: c.x, y: c.y, energy: 0, decay: 0, fromType: c.dna.type });
+        }
+      }
+      // Remove food in blast zone
+      foods = foods.filter(f => {
+        const dx = f.x - m.x, dy = f.y - m.y;
+        return dx*dx + dy*dy >= METEOR_RADIUS * METEOR_RADIUS;
+      });
+      // Add crater
+      craters.push({ x: m.x, y: m.y, r: METEOR_RADIUS, age: 0 });
+      meteors.splice(mi, 1);
+    }
+  }
+
+  // Age and expire craters
+  for (let ci = craters.length - 1; ci >= 0; ci--) {
+    craters[ci].age++;
+    if (craters[ci].age > CRATER_DURATION) craters.splice(ci, 1);
+  }
 
   rebuildGrids(); // spatial index for O(1) neighbour queries this tick
   for (const c of creatures) updateCreature(c);
@@ -1938,6 +2157,37 @@ function drawCreature(c) {
     ctx.shadowBlur = 0;
   }
 
+  // Champion crown ring
+  if (alive && c.champion) {
+    const pulse4 = 0.5 + 0.5 * Math.sin(tick * 0.1);
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, r + 10 + pulse4 * 4, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(255,215,0,${0.7 + pulse4 * 0.3})`;
+    ctx.lineWidth = 2.5;
+    ctx.shadowColor = 'rgba(255,215,0,1)';
+    ctx.shadowBlur = 12;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.font = `${r + 4}px monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.globalAlpha = alpha * 0.9;
+    ctx.fillText('👑', c.x, c.y - r - 12);
+  }
+
+  // Frenzy glow for carnivores
+  if (alive && frenziedTicks > 0 && c.dna.type === 'carnivore') {
+    const pulse5 = 0.5 + 0.5 * Math.sin(tick * 0.25 + c.x);
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, r + 4 + pulse5 * 3, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(255,30,60,${0.4 + pulse5 * 0.4})`;
+    ctx.lineWidth = 1.5;
+    ctx.shadowColor = 'rgba(255,30,60,0.9)';
+    ctx.shadowBlur = 10;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+  }
+
   ctx.restore();
 }
 
@@ -1983,11 +2233,24 @@ function drawFood(f) {
   ctx.save();
   ctx.beginPath();
   ctx.arc(f.x, f.y, 3, 0, Math.PI * 2);
-  ctx.fillStyle = '#ffd166';
-  ctx.shadowColor = '#ffd166';
-  ctx.shadowBlur = 6;
-  ctx.fill();
-  ctx.shadowBlur = 0;
+  if (f.toxic) {
+    ctx.fillStyle = '#84cc16';
+    ctx.shadowColor = '#a3e635';
+    ctx.shadowBlur = 8;
+    // Small toxic drip indicator
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.beginPath();
+    ctx.arc(f.x, f.y - 4, 1.2, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(163,230,53,0.6)';
+    ctx.fill();
+  } else {
+    ctx.fillStyle = '#ffd166';
+    ctx.shadowColor = '#ffd166';
+    ctx.shadowBlur = 6;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  }
   ctx.restore();
 }
 
@@ -2009,6 +2272,73 @@ function drawCorpse(corp) {
   ctx.lineWidth = 0.7;
   ctx.beginPath(); ctx.moveTo(corp.x - r*0.5, corp.y - r*0.5); ctx.lineTo(corp.x + r*0.5, corp.y + r*0.5); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(corp.x + r*0.5, corp.y - r*0.5); ctx.lineTo(corp.x - r*0.5, corp.y + r*0.5); ctx.stroke();
+  ctx.restore();
+}
+
+function drawCrater(cr) {
+  const progress = cr.age / CRATER_DURATION; // 0=fresh, 1=healed
+  const alpha = 1 - progress * 0.85;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  // Scorched ground — dark radial gradient
+  const g = ctx.createRadialGradient(cr.x, cr.y, 0, cr.x, cr.y, cr.r);
+  g.addColorStop(0,   `rgba(20,8,4,0.92)`);
+  g.addColorStop(0.5, `rgba(40,15,5,0.6)`);
+  g.addColorStop(1,   `rgba(60,20,5,0)`);
+  ctx.beginPath();
+  ctx.arc(cr.x, cr.y, cr.r, 0, Math.PI * 2);
+  ctx.fillStyle = g;
+  ctx.fill();
+  // Glowing ember rim at the edge
+  if (progress < 0.3) {
+    const emberA = (1 - progress / 0.3) * 0.5;
+    ctx.beginPath();
+    ctx.arc(cr.x, cr.y, cr.r * 0.85, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(255,80,20,${emberA})`;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawMeteorWarning(m) {
+  const progress = 1 - m.countdown / m.maxCountdown; // 0=just armed, 1=impact
+  ctx.save();
+  // Pulsing red targeting circle
+  const pulse = 0.5 + 0.5 * Math.sin(tick * 0.4);
+  const outerR = METEOR_RADIUS * (1.2 + pulse * 0.15);
+  ctx.beginPath();
+  ctx.arc(m.x, m.y, outerR, 0, Math.PI * 2);
+  ctx.strokeStyle = `rgba(255,50,30,${0.3 + progress * 0.5})`;
+  ctx.lineWidth = 2;
+  ctx.setLineDash([8, 6]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  // Crosshair
+  const ch = outerR * 0.35;
+  ctx.strokeStyle = `rgba(255,100,50,${0.5 + progress * 0.4})`;
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(m.x - ch, m.y); ctx.lineTo(m.x + ch, m.y); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(m.x, m.y - ch); ctx.lineTo(m.x, m.y + ch); ctx.stroke();
+  // Incoming streak — grows as countdown decreases
+  const streakLen = progress * 60;
+  ctx.beginPath();
+  ctx.moveTo(m.x - streakLen * 0.7, m.y - streakLen);
+  ctx.lineTo(m.x, m.y);
+  const grad = ctx.createLinearGradient(m.x - streakLen*0.7, m.y - streakLen, m.x, m.y);
+  grad.addColorStop(0, 'rgba(255,150,50,0)');
+  grad.addColorStop(1, `rgba(255,80,20,${progress * 0.8})`);
+  ctx.strokeStyle = grad;
+  ctx.lineWidth = 3 + progress * 4;
+  ctx.stroke();
+  // Impact countdown text
+  const secs = Math.ceil(m.countdown / 60);
+  ctx.globalAlpha = 0.7 + pulse * 0.3;
+  ctx.fillStyle = '#ff4d2d';
+  ctx.font = 'bold 11px monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(m.countdown > 0 ? `☄️ ${secs}s` : '💥', m.x, m.y - outerR - 10);
   ctx.restore();
 }
 
@@ -2067,9 +2397,17 @@ function render() {
       'PLAGUE WIND':    'rgba(180,80,240,0.03)',
       'FEEDING FRENZY': 'rgba(0,245,196,0.05)',
       'BLIZZARD':       'rgba(150,200,255,0.06)',
+      'TOXIC RAIN':     'rgba(130,210,20,0.04)',
     };
     const wt = wTints[activeWeather.event.name];
     if (wt) { ctx.fillStyle = wt; ctx.fillRect(0, 0, W, H); }
+  }
+
+  // Frenzy overlay
+  if (frenziedTicks > 0) {
+    const fp = 0.5 + 0.5 * Math.sin(tick * 0.08);
+    ctx.fillStyle = `rgba(255,20,50,${0.02 + fp * 0.02})`;
+    ctx.fillRect(0, 0, W, H);
   }
 
   // Pheromone render — update offscreen canvas when dirty, then blit in one drawImage call
@@ -2113,6 +2451,10 @@ function render() {
   }
 
   for (const corp of corpses) drawCorpse(corp);
+  // Draw craters under everything
+  for (const cr of craters) drawCrater(cr);
+  // Draw meteor warnings
+  for (const m of meteors) drawMeteorWarning(m);
   for (const s of seeds) drawSeed(s);
   for (const f of foods) drawFood(f);
   for (const c of creatures) drawCreature(c);
@@ -2325,6 +2667,62 @@ function updateParam(key, el) {
 canvas.addEventListener('click', e => {
   const rect = canvas.getBoundingClientRect();
   const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+
+  // ── Deus Mode routing ───────────────────────────────────────────────────────
+  if (deusMode === 'meteor') {
+    meteors.push({ x: mx, y: my, countdown: METEOR_COUNTDOWN, maxCountdown: METEOR_COUNTDOWN });
+    clearDeusArmed();
+    return;
+  }
+  if (deusMode === 'champion') {
+    // Find clicked creature
+    let clicked = null;
+    for (const c of creatures) {
+      if (c.alive && dist(c, { x: mx, y: my }) < Math.max(c.dna.size + 14, 20)) { clicked = c; break; }
+    }
+    if (clicked) {
+      // Remove champion from any existing champion first
+      creatures.forEach(c => { c.champion = false; });
+      clicked.champion = true;
+      clicked.energy = 300;
+      clicked.dna.speed    = Math.min(5,   clicked.dna.speed    * 2.2);
+      clicked.dna.size     = Math.min(12,  clicked.dna.size     * 1.6);
+      clicked.dna.sense    = Math.min(200, clicked.dna.sense    * 1.5);
+      clicked.dna.stamina  = Math.min(1.0, clicked.dna.stamina  * 1.4);
+      clicked.sleeping     = false;
+      clicked.sleepTicks   = 0;
+      clicked.sleepCooldown = 800;
+      selectedCreature = clicked;
+      clearDeusArmed();
+    }
+    return;
+  }
+  if (deusMode === 'teleport-pick') {
+    let clicked = null;
+    for (const c of creatures) {
+      if (c.alive && dist(c, { x: mx, y: my }) < Math.max(c.dna.size + 14, 20)) { clicked = c; break; }
+    }
+    if (clicked) {
+      deusTeleportCreature = clicked;
+      deusMode = 'teleport-place';
+      canvas.style.cursor = 'cell';
+    }
+    return;
+  }
+  if (deusMode === 'teleport-place') {
+    if (deusTeleportCreature && deusTeleportCreature.alive) {
+      deusTeleportCreature.x = mx;
+      deusTeleportCreature.y = my;
+      deusTeleportCreature.vx = (Math.random() - 0.5);
+      deusTeleportCreature.vy = (Math.random() - 0.5);
+      deusTeleportCreature.trail = [];
+    }
+    deusTeleportCreature = null;
+    clearDeusArmed();
+    return;
+  }
+
+  // ── Normal creature selection ───────────────────────────────────────────────
   let clicked = null;
   // Generous hit radius so small creatures are easy to click
   for (const c of creatures) {
@@ -2372,6 +2770,205 @@ document.getElementById('speciesGrid').addEventListener('click', function(e) {
     c2.classList.toggle('selected-species', c2.dataset.sid === selectedSpeciesId);
   });
 });
+
+// ── Deus Ex Machina Functions ─────────────────────────────────────────────────
+
+function clearDeusArmed() {
+  deusMode = null;
+  deusTeleportCreature = null;
+  canvas.style.cursor = 'crosshair';
+  document.querySelectorAll('.btn.deus').forEach(b => b.classList.remove('armed'));
+}
+
+function updateDeusWeatherButtons() {
+  const eventBtnMap = {
+    'DROUGHT':        'deusdroughtBtn',
+    'PLAGUE WIND':    'deusplagueBtn',
+    'FEEDING FRENZY': 'deusfrenzywBtn',
+    'BLIZZARD':       'deusblizzardBtn',
+    'TOXIC RAIN':     'deustoxicBtn',
+  };
+  // Clear all
+  Object.values(eventBtnMap).forEach(id => {
+    const btn = document.getElementById(id);
+    if (btn) btn.classList.remove('active-event');
+  });
+  // Highlight active
+  if (activeWeather) {
+    const id = eventBtnMap[activeWeather.event.name];
+    if (id) { const btn = document.getElementById(id); if (btn) btn.classList.add('active-event'); }
+  }
+}
+
+function deusSetSeason(idx) {
+  currentSeasonIdx = idx;
+  seasonTick = 0;
+  longWinterActive = false;
+  longWinterTicks = 0;
+  document.getElementById('longWinterBtn').classList.remove('active-event');
+  const ns = SEASONS[idx];
+  showWeatherBanner(ns.emoji + ' ' + ns.name + ' — FORCED', ns.color, 120, 'A divine hand shifts the seasons.');
+}
+
+function deusLongWinter() {
+  currentSeasonIdx = 3; // Winter
+  seasonTick = 0;
+  longWinterActive = true;
+  longWinterTicks = SEASON_LENGTH * 2.5; // 2.5× normal winter
+  document.getElementById('longWinterBtn').classList.add('active-event');
+  showWeatherBanner('🧊 LONG WINTER BEGINS', '#a0b4f0', 200, 'An endless freeze descends. No thaw in sight.');
+}
+
+function deusTriggerWeather(name) {
+  const ev = WEATHER_EVENTS.find(e => e.name === name);
+  if (!ev) return;
+  activeWeather = { event: ev, ticksLeft: ev.duration };
+  toxicRainActive = ev.name === 'TOXIC RAIN';
+  weatherCooldown = 0;
+  showWeatherBanner(ev.emoji + ' ' + ev.name + ' — FORCED', ev.color, ev.duration, ev.desc);
+  updateDeusWeatherButtons();
+}
+
+function deusClearWeather() {
+  if (activeWeather) {
+    const endedName = activeWeather.event.name;
+    activeWeather = null;
+    toxicRainActive = false;
+    weatherCooldown = 300;
+    showWeatherBanner('✕ WEATHER CLEARED', '#8899bb', 60, endedName + ' HAS BEEN DISMISSED');
+    updateDeusWeatherButtons();
+  }
+}
+
+function toggleRandomWeather() {
+  randomWeatherEnabled = !randomWeatherEnabled;
+  const btn = document.getElementById('randomWeatherBtn');
+  if (randomWeatherEnabled) {
+    btn.textContent = '🎲 RANDOM EVENTS: ON';
+    btn.classList.add('active-event');
+    weatherCooldown = 600 + Math.floor(Math.random() * 600); // fresh cooldown on enable
+  } else {
+    btn.textContent = '🎲 RANDOM EVENTS: OFF';
+    btn.classList.remove('active-event');
+  }
+}
+
+function deusClearToxic() {
+  // Remove all toxic food pellets
+  const before = foods.length;
+  foods = foods.filter(f => !f.toxic);
+  const removedFood = before - foods.length;
+  // Also clear toxicRainActive so no more toxic food spawns (unless weather still active)
+  // If toxic rain weather is still running, end it too
+  if (activeWeather && activeWeather.event.name === 'TOXIC RAIN') {
+    activeWeather = null;
+    toxicRainActive = false;
+    weatherCooldown = 300;
+    updateDeusWeatherButtons();
+  } else {
+    toxicRainActive = false;
+  }
+  showWeatherBanner('🧹 TOXINS PURGED', '#a3e635', 60,
+    `${removedFood} toxic food pellets removed`);
+}
+
+function deusArmMeteor() {
+  if (deusMode === 'meteor') { clearDeusArmed(); return; }
+  clearDeusArmed();
+  deusMode = 'meteor';
+  canvas.style.cursor = 'crosshair';
+  document.getElementById('meteorBtn').classList.add('armed');
+}
+
+function deusFrenzy() {
+  frenziedTicks = 500;
+  showWeatherBanner('🩸 CARNIVORE FRENZY', '#ff4d6d', 200, 'Carnivores ignore all social inhibition. Omnivores beware.');
+  document.getElementById('frenzyCBtn').classList.add('active-event');
+}
+
+function deusArmChampion() {
+  if (deusMode === 'champion') { clearDeusArmed(); return; }
+  clearDeusArmed();
+  deusMode = 'champion';
+  canvas.style.cursor = 'pointer';
+  document.getElementById('championBtn').classList.add('armed');
+}
+
+function deusArmTeleport() {
+  if (deusMode === 'teleport-pick' || deusMode === 'teleport-place') { clearDeusArmed(); return; }
+  clearDeusArmed();
+  deusMode = 'teleport-pick';
+  canvas.style.cursor = 'pointer';
+  document.getElementById('teleportBtn').classList.add('armed');
+}
+
+// Escape key cancels any armed Deus mode
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') clearDeusArmed();
+});
+
+// ── Targeted Mutations ────────────────────────────────────────────────────────
+const MUT_TRAITS = [
+  { key: 'speed',      label: 'Speed',      min: 0.2,    max: 5,    step: 0.15 },
+  { key: 'sense',      label: 'Sense',      min: 15,     max: 200,  step: 8    },
+  { key: 'size',       label: 'Size',       min: 2,      max: 12,   step: 0.3  },
+  { key: 'fertility',  label: 'Fertility',  min: 0.0005, max: 0.01, step: 0.0005 },
+  { key: 'metabolism', label: 'Metabolism', min: 0.005,  max: 0.08, step: 0.003 },
+  { key: 'aggression', label: 'Aggression', min: 0,      max: 1,    step: 0.07 },
+  { key: 'stamina',    label: 'Stamina',    min: 0.1,    max: 1.0,  step: 0.07 },
+];
+
+function buildMutRows() {
+  const container = document.getElementById('mutRows');
+  if (!container) return;
+  container.innerHTML = '';
+  for (const trait of MUT_TRAITS) {
+    const row = document.createElement('div');
+    row.className = 'mut-row';
+    const lbl = document.createElement('div');
+    lbl.className = 'mut-label';
+    lbl.textContent = trait.label;
+    const minus = document.createElement('button');
+    minus.className = 'mut-btn minus';
+    minus.textContent = '−';
+    minus.title = `Decrease ${trait.label} for all ${mutTargetType}s`;
+    minus.onclick = () => nudgeTrait(trait.key, -trait.step, trait.min, trait.max);
+    const plus = document.createElement('button');
+    plus.className = 'mut-btn';
+    plus.textContent = '+';
+    plus.title = `Increase ${trait.label} for all ${mutTargetType}s`;
+    plus.onclick = () => nudgeTrait(trait.key, trait.step, trait.min, trait.max);
+    row.appendChild(lbl);
+    row.appendChild(minus);
+    row.appendChild(plus);
+    container.appendChild(row);
+  }
+}
+
+function setMutTab(type) {
+  mutTargetType = type;
+  document.querySelectorAll('.type-tab').forEach(t => t.classList.remove('active'));
+  const tabMap = { herbivore: 'mutTabHerb', carnivore: 'mutTabCarn', omnivore: 'mutTabOmni' };
+  const tabEl = document.getElementById(tabMap[type]);
+  if (tabEl) tabEl.classList.add('active');
+}
+
+function nudgeTrait(key, delta, min, max) {
+  let affected = 0;
+  for (const c of creatures) {
+    if (!c.alive || c.dna.type !== mutTargetType) continue;
+    c.dna[key] = Math.max(min, Math.min(max, (c.dna[key] ?? 0) + delta));
+    affected++;
+  }
+  if (affected > 0) {
+    const dir = delta > 0 ? '▲' : '▼';
+    showWeatherBanner(`${dir} ${key.toUpperCase()} NUDGED`, '#8899bb', 60,
+      `${affected} ${mutTargetType}s affected`);
+  }
+}
+
+// Build mutation rows on load
+buildMutRows();
 
 function toggleLegend() {
   const body = document.getElementById('legendBody');
