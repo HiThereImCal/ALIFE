@@ -163,6 +163,42 @@
   .mini-chart canvas { width: 100%; height: 100%; }
 
   .info-box { font-size: 9px; line-height: 1.8; color: var(--text); letter-spacing: 0.5px; }
+
+  /* Collapsible legend */
+  .section-title-row {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .section-title-row .section-title { margin-bottom: 0; }
+  .collapse-btn {
+    background: none; border: none; cursor: pointer;
+    color: var(--accent); font-size: 11px; line-height: 1;
+    padding: 2px 4px; transition: transform 0.2s;
+  }
+  .collapse-btn.collapsed { transform: rotate(-90deg); }
+
+  /* Species grid */
+  .species-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 4px;
+    margin-top: 4px;
+  }
+  .species-cell {
+    display: flex; flex-direction: column; align-items: center;
+    gap: 2px; font-size: 8px; color: var(--text);
+    background: rgba(255,255,255,0.02);
+    border: 1px solid var(--border);
+    padding: 4px 2px; border-radius: 2px;
+    cursor: pointer; transition: border-color 0.15s, background 0.15s;
+    user-select: none;
+  }
+  .species-cell:hover {
+    border-color: var(--accent);
+    background: rgba(0,245,196,0.07);
+  }
+  .species-cell:active { background: rgba(0,245,196,0.14); }
+  .species-cell canvas { display: block; pointer-events: none; }
   .info-box b { color: var(--accent); font-weight: normal; }
 
   footer {
@@ -181,6 +217,7 @@
     <div class="stat"><div class="stat-val" id="cPop" style="color:var(--accent2)">0</div><div class="stat-lbl">Carnivores</div></div>
     <div class="stat"><div class="stat-val" id="oPop" style="color:#2bbcff">0</div><div class="stat-lbl">Omnivores</div></div>
     <div class="stat"><div class="stat-val" id="fPop" style="color:var(--accent3)">0</div><div class="stat-lbl">Food</div></div>
+    <div class="stat"><div class="stat-val" id="sPop" style="color:#2d8a30">0</div><div class="stat-lbl">Seeds</div></div>
     <div class="stat"><div class="stat-val" id="genNum" style="color:#a29bfe">0</div><div class="stat-lbl">Generation</div></div>
     <div class="stat"><div class="stat-val" id="tickNum">0</div><div class="stat-lbl">Tick</div></div>
   </div>
@@ -209,7 +246,7 @@
       <div class="section-title">Environment</div>
       <div class="control-row">
         <div class="control-label">FOOD SPREAD</div>
-        <input type="range" id="foodRate" min="1" max="20" value="8" oninput="updateParam('foodRate', this)">
+        <input type="range" id="foodRate" min="1" max="50" value="8" oninput="updateParam('foodRate', this)">
         <div class="val-display" id="foodRateVal">8</div>
       </div>
       <div class="control-row">
@@ -234,6 +271,7 @@
       <button class="btn" id="spawnH" onclick="spawnCreatures('herbivore', spawnAmt())">+ <span id="spawnHlbl">1</span> HERBIVORE<span id="spawnHs"></span></button>
       <button class="btn" id="spawnC" onclick="spawnCreatures('carnivore', spawnAmt())">+ <span id="spawnClbl">1</span> CARNIVORE<span id="spawnCs"></span></button>
       <button class="btn" id="spawnO" onclick="spawnCreatures('omnivore', spawnAmt())">+ <span id="spawnOlbl">1</span> OMNIVORE<span id="spawnOs"></span></button>
+      <button class="btn" id="spawnS" onclick="spawnSeed(spawnAmt())">+ <span id="spawnSlbl">1</span> SEED<span id="spawnSs"></span></button>
       <button class="btn" id="spawnF" onclick="spawnFood(spawnAmt())">+ <span id="spawnFlbl">1</span> FOOD</button>
       <div style="display:flex;gap:6px;margin-top:8px;">
         <button class="btn qty-btn active" id="qty1" onclick="setQty(1)" style="flex:1;text-align:center;padding:6px 0;">1</button>
@@ -242,12 +280,16 @@
       </div>
     </div>
     <div class="section">
-      <div class="section-title">Legend</div>
-      <div class="legend">
+      <div class="section-title-row">
+        <div class="section-title" style="margin-bottom:0">Legend</div>
+        <button class="collapse-btn" id="legendToggle" onclick="toggleLegend()" title="Toggle legend">▼</button>
+      </div>
+      <div class="legend" id="legendBody">
         <div class="legend-item"><div class="legend-dot" style="background:var(--accent)"></div>HERBIVORE — eats food</div>
-        <div class="legend-item"><div class="legend-dot" style="background:#2bbcff"></div>OMNIVORE — food + corpses</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#00dce0"></div>OMNIVORE — food + corpses</div>
         <div class="legend-item"><div class="legend-dot" style="background:var(--accent2)"></div>CARNIVORE — hunts prey</div>
         <div class="legend-item"><div class="legend-dot" style="background:var(--accent3)"></div>FOOD — energy pellets</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#ffd166;border:1px dashed rgba(255,200,50,0.6)"></div>SEED — disperses food, vanishes</div>
         <div class="legend-item"><div class="legend-dot" style="background:#a29bfe"></div>MATING — purple, vulnerable!</div>
         <div class="legend-item"><div class="legend-dot" style="background:#ffd166;opacity:0.7"></div>SATED (90%+) — behaviour shift</div>
         <div class="legend-item"><div class="legend-dot" style="background:#a0b4f0;opacity:0.7"></div>SLEEPING — inert, vulnerable</div>
@@ -262,6 +304,10 @@
     <div class="section">
       <div class="section-title">Population Graph</div>
       <div class="mini-chart"><canvas id="chartCanvas"></canvas></div>
+    </div>
+    <div class="section">
+      <div class="section-title">Species <span id="speciesCount" style="color:var(--text);font-size:9px;letter-spacing:1px">0</span></div>
+      <div class="species-grid" id="speciesGrid"></div>
     </div>
     <div class="section">
       <div class="section-title">Selection Info</div>
@@ -283,6 +329,98 @@ const chartCtx = chartCanvas.getContext('2d');
 
 let creatures = [];
 let foods = [];
+let seeds = []; // Seeds generate food but can't be eaten
+
+// ── Species registry ─────────────────────────────────────────────────────────
+// Each species = { id, type, shape, count } where shape is a polygon vertex count
+// Base shapes per type: herbivore=6(hex), carnivore=4(diamond), omnivore=0(circle)
+// New species get shapes: 3(tri), 5(pent), 7(hept), 8(oct)...
+const EXTRA_SHAPES   = [3, 5, 7, 8, 9, 10, 11, 12, 3, 5, 7, 8, 9, 10]; // cycling pool — 14 distinct shapes
+let   speciesRegistry = {}; // key: speciesId -> { id, type, shape, color }
+let   nextShapeIdx    = 0;
+
+// Species distance threshold: creatures with genome distance > this fork a new species
+// Speciation distance threshold.
+// genomeVec normalises 7 traits into [0,1]; max possible distance = sqrt(7/7) = 1.0
+// With 10% mutation rate, children drift ~0.05–0.15 per generation.
+// Threshold of 0.25 means ~4-6 generations of directional drift before forking.
+const SPECIATION_THRESHOLD = 0.25;
+
+function genomeVec(dna) {
+  // Normalised vector of heritable traits for distance comparison
+  return [
+    dna.speed      / 5,
+    dna.sense      / 200,
+    dna.size       / 12,
+    dna.fertility  / 0.01,
+    dna.metabolism / 0.08,
+    dna.aggression,
+    (dna.stamina ?? 1.0),
+  ];
+}
+
+function genomeDist(a, b) {
+  const va = genomeVec(a), vb = genomeVec(b);
+  let s = 0;
+  for (let i = 0; i < va.length; i++) s += (va[i]-vb[i])**2;
+  return Math.sqrt(s / va.length);
+}
+
+function assignSpecies(c) {
+  // Find the closest registered species of same type
+  let bestId = null, bestDist = Infinity;
+  for (const [sid, sp] of Object.entries(speciesRegistry)) {
+    if (sp.type !== c.dna.type) continue;
+    const d = genomeDist(c.dna, sp.centroid);
+    if (d < bestDist) { bestDist = d; bestId = sid; }
+  }
+  if (bestId !== null && bestDist < SPECIATION_THRESHOLD) {
+    c.speciesId = bestId;
+  } else {
+    // Fork a new species
+    const sid = 'sp_' + Math.random().toString(36).slice(2,7);
+    const sameTypeSpecies = Object.values(speciesRegistry).filter(s => s.type === c.dna.type);
+    const isBase = sameTypeSpecies.length === 0;
+    const baseShape = c.dna.type === 'herbivore' ? 6
+                    : c.dna.type === 'omnivore'  ? 0
+                    : 4;
+    // Rotate through extra shapes; each type has its own counter
+    const shape = isBase ? baseShape : EXTRA_SHAPES[nextShapeIdx++ % EXTRA_SHAPES.length];
+    speciesRegistry[sid] = {
+      id: sid, type: c.dna.type, shape,
+      centroid: { type: c.dna.type, ...c.dna }
+    };
+    c.speciesId = sid;
+    console.log(`New species: ${sid} (${c.dna.type}, shape=${shape}, dist=${bestDist?.toFixed(3)})`);
+  }
+}
+
+function updateSpeciesCentroids() {
+  // Recalculate centroid (average genome) of each living species
+  const sums   = {};
+  const counts = {};
+  for (const c of creatures) {
+    if (!c.alive || !c.speciesId) continue;
+    const sid = c.speciesId;
+    if (!sums[sid]) { sums[sid] = genomeVec(c.dna).map(() => 0); counts[sid] = 0; }
+    const v = genomeVec(c.dna);
+    for (let i = 0; i < v.length; i++) sums[sid][i] += v[i];
+    counts[sid]++;
+  }
+  const keys = ['speed','sense','size','fertility','metabolism','aggression','stamina'];
+  const scale = [5, 200, 12, 0.01, 0.08, 1, 1.0];
+  for (const [sid, sp] of Object.entries(speciesRegistry)) {
+    if (!counts[sid]) continue;
+    const avg = sums[sid].map((s,i) => s / counts[sid]);
+    keys.forEach((k,i) => { sp.centroid[k] = avg[i] * scale[i]; });
+    sp.centroid.type = sp.type; // preserve type field
+  }
+  // Prune extinct species
+  const activeSids = new Set(creatures.filter(c => c.alive && c.speciesId).map(c => c.speciesId));
+  for (const sid of Object.keys(speciesRegistry)) {
+    if (!activeSids.has(sid)) delete speciesRegistry[sid];
+  }
+}
 let tick = 0;
 let generation = 1;
 let playing = true;
@@ -296,6 +434,9 @@ let pheroW = 1, pheroH = 1; // grid dimensions, set on resize
 let pheroHerb = null;        // herbivore scent (teal) — carnivores follow this
 let pheroCarn = null;        // carnivore scent (red)  — herbivores flee this
 let pheroOmni = null;        // omnivore scent (cyan)  — distinct from herb
+let pheroCanvas = null;      // offscreen canvas for pre-blended pheromone image
+let pheroCtx2   = null;
+let pheroNeedsRedraw = true; // flag: redraw offscreen when data changes
 
 function initPhero() {
   pheroW = Math.ceil(canvas.width  / PHERO_CELL);
@@ -303,6 +444,12 @@ function initPhero() {
   pheroHerb = new Float32Array(pheroW * pheroH);
   pheroCarn = new Float32Array(pheroW * pheroH);
   pheroOmni = new Float32Array(pheroW * pheroH);
+  // Offscreen canvas mirrors the phero grid
+  pheroCanvas = document.createElement('canvas');
+  pheroCanvas.width  = pheroW * PHERO_CELL;
+  pheroCanvas.height = pheroH * PHERO_CELL;
+  pheroCtx2 = pheroCanvas.getContext('2d');
+  pheroNeedsRedraw = true;
 }
 
 function pheroIdx(gx, gy) { return gy * pheroW + gx; }
@@ -355,6 +502,94 @@ function updatePhero(grid) {
   grid.set(next);
 }
 
+
+// ── Spatial Grid ──────────────────────────────────────────────────────────────
+// Bins all objects into fixed-size cells so neighbour lookups are O(1) average
+// instead of O(n). Rebuilt from scratch each tick (cheap for <1000 objects).
+const GRID_CELL = 80; // px — tune to ~2× typical sense radius
+class SpatialGrid {
+  constructor(W, H) {
+    this.cols = Math.ceil(W / GRID_CELL);
+    this.rows = Math.ceil(H / GRID_CELL);
+    this.cells = new Array(this.cols * this.rows).fill(null).map(() => []);
+  }
+  _idx(x, y) {
+    const col = Math.max(0, Math.min(this.cols-1, Math.floor(x / GRID_CELL)));
+    const row = Math.max(0, Math.min(this.rows-1, Math.floor(y / GRID_CELL)));
+    return row * this.cols + col;
+  }
+  insert(obj) { this.cells[this._idx(obj.x, obj.y)].push(obj); }
+  // Query all objects within radius r of (x,y)
+  query(x, y, r) {
+    const c0 = Math.max(0, Math.floor((x-r)/GRID_CELL));
+    const c1 = Math.min(this.cols-1, Math.floor((x+r)/GRID_CELL));
+    const r0 = Math.max(0, Math.floor((y-r)/GRID_CELL));
+    const r1 = Math.min(this.rows-1, Math.floor((y+r)/GRID_CELL));
+    const out = [];
+    const r2  = r*r;
+    for (let row = r0; row <= r1; row++) {
+      for (let col = c0; col <= c1; col++) {
+        for (const o of this.cells[row*this.cols+col]) {
+          const dx = o.x-x, dy = o.y-y;
+          if (dx*dx+dy*dy <= r2) out.push(o);
+        }
+      }
+    }
+    return out;
+  }
+}
+
+// Per-tick grids (rebuilt in updateSim before creature updates)
+let sgCreatures = null; // all alive creatures
+let sgFoods     = null; // food pellets
+let sgCorpses   = null; // corpses
+
+function rebuildGrids() {
+  const W = canvas.width, H = canvas.height;
+  sgCreatures = new SpatialGrid(W, H);
+  sgFoods     = new SpatialGrid(W, H);
+  sgCorpses   = new SpatialGrid(W, H);
+  for (const c of creatures) { if (c.alive) sgCreatures.insert(c); }
+  for (const f of foods)     sgFoods.insert(f);
+  for (const co of corpses)  sgCorpses.insert(co);
+}
+
+// Grid-accelerated nearest-neighbour (replaces findNearest for hot paths)
+function gridNearest(x, y, grid, maxDist, filterFn) {
+  const candidates = grid ? grid.query(x, y, maxDist) : [];
+  let best = null, bd = maxDist * maxDist;
+  for (const o of candidates) {
+    if (filterFn && !filterFn(o)) continue;
+    const dx = o.x-x, dy = o.y-y;
+    const d2 = dx*dx+dy*dy;
+    if (d2 < bd) { bd = d2; best = o; }
+  }
+  return best;
+}
+
+// Grid-accelerated cone search
+function gridInCone(cx, cy, vx, vy, grid, range, halfArc, filterFn) {
+  const candidates = grid ? grid.query(cx, cy, range) : [];
+  const heading = Math.atan2(vy, vx);
+  const spd     = Math.sqrt(vx*vx + vy*vy);
+  const useCone = spd > 0.1;
+  let best = null, bd = range*range;
+  for (const o of candidates) {
+    if (filterFn && !filterFn(o)) continue;
+    const dx = o.x-cx, dy = o.y-cy;
+    const d2 = dx*dx+dy*dy;
+    if (d2 >= bd) continue;
+    if (useCone) {
+      let diff = Math.atan2(dy, dx) - heading;
+      while (diff >  Math.PI) diff -= 2*Math.PI;
+      while (diff < -Math.PI) diff += 2*Math.PI;
+      if (Math.abs(diff) > halfArc) continue;
+    }
+    bd = d2; best = o;
+  }
+  return best;
+}
+
 // How many ticks creatures stay in the purple mating state before baby spawns
 const MATING_DURATION = 60;
 
@@ -394,7 +629,7 @@ function mutateDNA(dna) {
 // ── Factory ───────────────────────────────────────────────────────────────────
 function createCreature(type, x, y, dna) {
   dna = dna || randomDNA(type);
-  return {
+  const c = {
     id:             Math.random().toString(36).slice(2),
     dna,
     x:              x ?? Math.random() * canvas.width,
@@ -415,9 +650,18 @@ function createCreature(type, x, y, dna) {
     sprinting:      false, // is currently sprinting
     packTarget:     null,  // shared prey reference for pack hunting
     status:         'WANDERING',
+    speciesId:      null,  // assigned by speciation system
+    // ── Memory (individual learning) ─────────────────────────────────────
+    memFoodX:       null,  // last position where food was successfully eaten
+    memFoodY:       null,
+    memFoodAge:     0,     // how many ticks ago food was found (fades usefulness)
+    memHuntWins:    {},    // { preyType: successCount } for predator intelligence
+    memHuntAttempts:{},    // { preyType: attemptCount }
     trail:          [],
     gen:            generation,
   };
+  assignSpecies(c);
+  return c;
 }
 
 function createFood(x, y) {
@@ -428,18 +672,73 @@ function createFood(x, y) {
   };
 }
 
+function createSeed(x, y) {
+  return {
+    x:       x ?? Math.random() * canvas.width,
+    y:       y ?? Math.random() * canvas.height,
+    budget:  100 + Math.floor(Math.random() * 200), // disperses 100–300 food then dies
+    spawned: 0,
+    age:     0,
+  };
+}
+function spawnSeed(n) { for (let i = 0; i < (n||1); i++) seeds.push(createSeed()); }
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 function resetSim() {
-  creatures = []; foods = []; corpses = []; initPhero();
+  creatures = []; foods = []; corpses = []; seeds = []; initPhero();
   tick = 0; generation = 1;
   history.h = []; history.c = []; history.o = []; history.f = [];
   selectedCreature = null;
-  for (let i = 0; i < 20; i++) creatures.push(createCreature('herbivore'));
-  for (let i = 0; i < 6;  i++) creatures.push(createCreature('carnivore'));
-  for (let i = 0; i < 60; i++) foods.push(createFood());
+  speciesRegistry = {}; nextShapeIdx = 0;
+  for (let i = 0; i < 40; i++) creatures.push(createCreature('herbivore'));
+  for (let i = 0; i < 10; i++) creatures.push(createCreature('carnivore'));
+  for (let i = 0; i < 15; i++) creatures.push(createCreature('omnivore'));
+  for (let i = 0; i < 50; i++) foods.push(createFood());
 }
 
 function spawnCreatures(type, n) { for (let i = 0; i < n; i++) creatures.push(createCreature(type)); }
+
+function spawnFromSpecies(sid) {
+  const sp = speciesRegistry[sid];
+  if (!sp) { console.warn('spawnFromSpecies: unknown sid', sid); return; }
+  const n = spawnAmt();
+  for (let i = 0; i < n; i++) {
+    const dna = mutateDNA({ ...sp.centroid, type: sp.type });
+    // Build directly — don't use createCreature() which calls assignSpecies()
+    // and would reassign speciesId based on genome distance
+    const creature = {
+      id:              Math.random().toString(36).slice(2),
+      dna,
+      x:               Math.random() * canvas.width,
+      y:               Math.random() * canvas.height,
+      vx:              (Math.random() - 0.5) * 2,
+      vy:              (Math.random() - 0.5) * 2,
+      energy:          150,
+      age:             0,
+      alive:           true,
+      matingWith:      null,
+      matingTicks:     0,
+      matingCooldown:  0,
+      mateCount:       0,
+      sleeping:        false,
+      sleepTicks:      0,
+      sleepCooldown:   Math.floor(Math.random() * 400) + 200,
+      wakeScatter:     0,
+      sprinting:       false,
+      packTarget:      null,
+      status:          'WANDERING',
+      speciesId:       sid,
+      memFoodX:        null,
+      memFoodY:        null,
+      memFoodAge:      0,
+      memHuntWins:     {},
+      memHuntAttempts: {},
+      trail:           [],
+      gen:             generation,
+    };
+    creatures.push(creature);
+  }
+}
 function spawnFood(n)            { for (let i = 0; i < n; i++) foods.push(createFood()); }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -455,6 +754,15 @@ function findNearest(c, list, maxDist) {
     if (d < bd) { bd = d; best = item; }
   }
   return best;
+}
+
+// Returns success rate [0..1] for a given prey key, defaulting to 0.5 (neutral) if no data
+function huntSuccessRate(c, preyType, extra) {
+  const key = preyType + (extra || '');
+  const wins = c.memHuntWins    ? (c.memHuntWins[key]     || 0) : 0;
+  const att  = c.memHuntAttempts? (c.memHuntAttempts[key] || 0) : 0;
+  if (att < 3) return 0.5; // insufficient data — neutral
+  return wins / att;
 }
 
 // Cone vision for carnivores — forward-facing arc, longer range
@@ -488,13 +796,19 @@ function updateCreature(c) {
 
   c.age++;
   if (c.matingCooldown > 0) c.matingCooldown--;
-  c.energy -= c.dna.metabolism + c.dna.speed * 0.003 + c.dna.size * 0.002;
+  // Normal metabolism; slow down in the last 20% to give the boom-bust cycle
+  // more time to stabilise rather than crash
+  const baseDrain = c.dna.metabolism + c.dna.speed * 0.003 + c.dna.size * 0.002;
+  const drainMult = c.energy < 60 ? 0.45 : 1.0; // 55% slower when starving
+  c.energy -= baseDrain * drainMult;
 
   if (c.energy <= 0 || c.age > 4000) {
     if (c.matingWith) { c.matingWith.matingWith = null; c.matingWith.matingTicks = 0; }
     // All deaths leave a corpse (burst carnivore pheromone too — death smell)
     corpses.push({ x: c.x, y: c.y, energy: 20 + Math.random() * 25, decay: 0, fromType: c.dna.type });
-    if (pheroCarn) depositPhero(pheroCarn, c.x, c.y, 0.6);
+    // Large pheromone burst on death — attracts carnivores and omnivores
+    if (pheroCarn) depositPhero(pheroCarn, c.x, c.y, 1.0);
+    if (pheroOmni) depositPhero(pheroOmni, c.x, c.y, 0.7);
     c.alive = false;
     return;
   }
@@ -518,7 +832,8 @@ function updateCreature(c) {
 
     if (c.sleepTicks <= 0) {
       c.sleeping = false;
-      c.sleepCooldown = 300 + Math.floor(Math.random() * 400);
+      // Re-randomise cooldown each time to prevent synchronised sleep waves
+      c.sleepCooldown = 200 + Math.floor(Math.random() * 600);
     }
     c.energy = Math.min(c.energy, 300);
     return; // Skip all other behaviour while asleep
@@ -597,6 +912,7 @@ function updateCreature(c) {
             childDNA
           );
           child.gen = newGen;
+          assignSpecies(child); // child may fork new species if sufficiently mutated
           creatures.push(child);
         }
         // Energy cost scales with number of offspring; carnivores pay 50% less
@@ -636,20 +952,26 @@ function updateCreature(c) {
 
   if (c.dna.type === 'herbivore') {
     c.status = 'FORAGING';
-    // Always flee carnivores (stronger urge when sated — nothing to distract from survival)
-    const predator = findNearest(c,
-      creatures.filter(o => o.alive && o.dna.type === 'carnivore'),
-      isSated ? c.dna.sense * 1.4 : c.dna.sense); // wider awareness when sated
-    if (predator) {
-      const dx = c.x - predator.x, dy = c.y - predator.y;
-      const d = Math.sqrt(dx*dx + dy*dy) + 0.001;
-      tx = c.x + (dx/d) * (isSated ? 120 : 80);
-      ty = c.y + (dy/d) * (isSated ? 120 : 80);
-      c.status = 'FLEEING';
+    // Shepherded herbivores feel protected — they don't flee (shepherd provides safety)
+    const isShepherded = !!(c._shepherdRef && c._shepherdRef.alive);
+    // Always flee carnivores UNLESS currently shepherded
+    if (!isShepherded) {
+      const fleeRange = isSated ? c.dna.sense * 1.4 : c.dna.sense;
+      const predator = gridNearest(c.x, c.y, sgCreatures, fleeRange,
+        o => o !== c && o.dna.type === 'carnivore');
+      if (predator) {
+        const dx = c.x - predator.x, dy = c.y - predator.y;
+        const d = Math.sqrt(dx*dx + dy*dy) + 0.001;
+        tx = c.x + (dx/d) * (isSated ? 120 : 80);
+        ty = c.y + (dy/d) * (isSated ? 120 : 80);
+        c.status = 'FLEEING';
+      }
+    } else {
+      c.status = 'SHEPHERDED';
     }
     // Mildly repelled by corpses (smell of death = predator nearby)
     if (tx === null) {
-      const corpse = findNearest(c, corpses, c.dna.sense * 0.5);
+      const corpse = gridNearest(c.x, c.y, sgCorpses, c.dna.sense * 0.5, null);
       if (corpse) {
         const dx = c.x - corpse.x, dy = c.y - corpse.y;
         const d = Math.sqrt(dx*dx + dy*dy) + 0.001;
@@ -668,38 +990,39 @@ function updateCreature(c) {
     }
     // Only seek food when NOT sated
     if (tx === null && !isSated) {
-      const food = findNearest(c, foods, c.dna.sense);
+      const food = gridNearest(c.x, c.y, sgFoods, c.dna.sense, null);
       if (food) { tx = food.x; ty = food.y; c.status = 'SEEKING FOOD'; }
     }
-    // Seek mate when eligible (sated herbivores actively seek mates)
+    // Seek mate when eligible
     if (tx === null && mateElig) {
-      const mate = findNearest(c,
-        creatures.filter(o => o.alive && o !== c && o.dna.type === 'herbivore' &&
-                              o.energy >= MATE_ENERGY && o.matingCooldown === 0 &&
-                              !o.matingWith && o.mateCount < MAX_MATES),
-        c.dna.sense * 0.8);
+      const mate = gridNearest(c.x, c.y, sgCreatures, c.dna.sense * 0.8,
+        o => o !== c && o.dna.type === 'herbivore' && o.energy >= MATE_ENERGY
+          && o.matingCooldown === 0 && !o.matingWith && o.mateCount < MAX_MATES);
       if (mate) { tx = mate.x; ty = mate.y; c.status = 'SEEKING MATE'; }
     }
     if (isSated && tx === null) c.status = 'SATED — WANDERING';
 
   } else if (c.dna.type === 'omnivore') {
     // ── OMNIVORE BEHAVIOUR ──────────────────────────────────────────────────
+    // Dual vision: cone (forward, long) + circle (close, omnidirectional)
+    const CONE_RANGE  = c.dna.sense * 1.8;
+    const CONE_ARC    = Math.PI / 3;
+
     c.sprinting = false;
     c.status = 'FORAGING';
 
     const lists = window._simLists || {};
-    const wCarn = (lists.carns || []).filter(o => o !== c);
-    const dangerCarn = findNearest(c, wCarn, c.dna.sense); // nearby carnivore — flee if awake
+    const dangerCarn = gridNearest(c.x, c.y, sgCreatures, c.dna.sense,
+      o => o !== c && o.dna.type === 'carnivore');
 
     if (isSated) {
       // SHEPHERDING: attract nearby herbivores to follow
       c.status = 'SHEPHERDING';
       // Seek mates if eligible
       if (mateElig) {
-        const mate = findNearest(c,
-          (lists.alive || []).filter(o => o !== c && o.dna.type === 'omnivore' &&
-            o.energy >= MATE_ENERGY && o.matingCooldown === 0 && !o.matingWith && o.mateCount < MAX_MATES),
-          c.dna.sense * 0.8);
+        const mate = gridNearest(c.x, c.y, sgCreatures, c.dna.sense * 0.8,
+          o => o !== c && o.dna.type === 'omnivore' && o.energy >= MATE_ENERGY
+            && o.matingCooldown === 0 && !o.matingWith && o.mateCount < MAX_MATES);
         if (mate) { tx = mate.x; ty = mate.y; c.status = 'SEEKING MATE'; }
       }
     } else {
@@ -712,20 +1035,19 @@ function updateCreature(c) {
       }
       // Scavenge corpses (omnis eat all corpses — priority)
       if (tx === null) {
-        const nc = findNearest(c, corpses, c.dna.sense);
+        const nc = gridNearest(c.x, c.y, sgCorpses, c.dna.sense, null);
         if (nc) { tx = nc.x; ty = nc.y; c.packTarget = null; c.status = 'SCAVENGING'; }
       }
       // Eat food like herbivore
       if (tx === null) {
-        const food = findNearest(c, foods, c.dna.sense);
+        const food = gridNearest(c.x, c.y, sgFoods, c.dna.sense, null);
         if (food) { tx = food.x; ty = food.y; c.status = 'SEEKING FOOD'; }
       }
       // Seek mate if nothing else
       if (tx === null && mateElig) {
-        const mate = findNearest(c,
-          (lists.alive || []).filter(o => o !== c && o.dna.type === 'omnivore' &&
-            o.energy >= MATE_ENERGY && o.matingCooldown === 0 && !o.matingWith && o.mateCount < MAX_MATES),
-          c.dna.sense * 0.5);
+        const mate = gridNearest(c.x, c.y, sgCreatures, c.dna.sense * 0.5,
+          o => o !== c && o.dna.type === 'omnivore' && o.energy >= MATE_ENERGY
+            && o.matingCooldown === 0 && !o.matingWith && o.mateCount < MAX_MATES);
         if (mate) { tx = mate.x; ty = mate.y; c.status = 'SEEKING MATE'; }
       }
       if (tx === null) { c.status = 'WANDERING'; c.packTarget = null; }
@@ -739,23 +1061,21 @@ function updateCreature(c) {
     c.sprinting = false;
     const lists = window._simLists || {};
 
-    // Avoid awake omnivores — they're not worth the trouble
-    const nearOmni = findNearest(c,
-      (lists.omnis || []).filter(o => !o.sleeping && o.energy >= 30),
-      c.dna.sense * 0.6);
-    if (nearOmni) {
-      const dx = c.x - nearOmni.x, dy = c.y - nearOmni.y;
+    // Avoid safe omnivores — keep distance unless sleeping, mating, or <10% energy
+    const safeOmni = gridNearest(c.x, c.y, sgCreatures, c.dna.sense * 0.7,
+      o => o !== c && o.dna.type === 'omnivore' && !o.sleeping && !o.matingWith && o.energy >= 30);
+    if (safeOmni) {
+      const dx = c.x - safeOmni.x, dy = c.y - safeOmni.y;
       const d = Math.sqrt(dx*dx+dy*dy)+0.001;
-      c.vx += (dx/d) * 0.3; c.vy += (dy/d) * 0.3;
+      c.vx += (dx/d) * 0.35; c.vy += (dy/d) * 0.35;
     }
 
     if (isSated) {
       c.status = 'SEEKING MATE';
       if (mateElig) {
-        const mate = findNearest(c,
-          (lists.carns || []).filter(o => o !== c &&
-            o.energy >= MATE_ENERGY && o.matingCooldown === 0 && !o.matingWith && o.mateCount < MAX_MATES),
-          c.dna.sense * 0.8);
+        const mate = gridNearest(c.x, c.y, sgCreatures, c.dna.sense * 0.8,
+          o => o !== c && o.dna.type === 'carnivore' && o.energy >= MATE_ENERGY
+            && o.matingCooldown === 0 && !o.matingWith && o.mateCount < MAX_MATES);
         if (mate) { tx = mate.x; ty = mate.y; }
       }
       if (tx === null) c.status = 'SATED — WANDERING';
@@ -777,84 +1097,118 @@ function updateCreature(c) {
       }
       if (packInterceptX !== null) { tx = packInterceptX; ty = packInterceptY; c.status = 'PACK FLANKING'; }
 
-      // Cone prey detection — sleeping first
+      // Cone prey detection — sleeping first (grid-accelerated)
       if (tx === null) {
-        const sp = findInCone(c, lists.sleeping || [], CONE_RANGE, CONE_ARC);
-        if (sp && sp !== c) { tx = sp.x; ty = sp.y; c.packTarget = sp; c.status = 'STALKING'; }
+        const sp = gridInCone(c.x,c.y,c.vx,c.vy, sgCreatures, CONE_RANGE, CONE_ARC,
+          o => o !== c && o.alive && o.sleeping);
+        if (sp) { tx = sp.x; ty = sp.y; c.packTarget = sp; c.status = 'STALKING'; }
       }
       // Mating prey
       if (tx === null) {
-        const pp = findInCone(c, lists.mating || [], CONE_RANGE, CONE_ARC);
+        const pp = gridInCone(c.x,c.y,c.vx,c.vy, sgCreatures, CONE_RANGE, CONE_ARC,
+          o => o !== c && o.alive && o.matingWith !== null);
         if (pp) { tx = pp.x; ty = pp.y; c.packTarget = pp; c.status = 'HUNTING MATING PREY'; }
       }
       // Cannibalism (weak young carnivore)
       if (tx === null) {
-        const wc = findInCone(c, (lists.carns || []).filter(o => o !== c && o.energy < 30 && o.age < c.age*0.5), CONE_RANGE, CONE_ARC);
+        const wc = gridInCone(c.x,c.y,c.vx,c.vy, sgCreatures, CONE_RANGE, CONE_ARC,
+          o => o !== c && o.alive && o.dna.type === 'carnivore' && o.energy < 30 && o.age < c.age*0.5);
         if (wc) { tx = wc.x; ty = wc.y; c.packTarget = wc; c.status = 'CANNIBALISING'; }
       }
-      // Sleeping omnivore is fair game
+      // Vulnerable omnivore: sleeping, mating, or <10% energy
       if (tx === null) {
-        const so = findInCone(c, (lists.omnis || []).filter(o => o.sleeping), CONE_RANGE, CONE_ARC);
-        if (so) { tx = so.x; ty = so.y; c.packTarget = so; c.status = 'HUNTING OMNIVORE'; }
+        const vo = gridInCone(c.x,c.y,c.vx,c.vy, sgCreatures, CONE_RANGE, CONE_ARC,
+          o => o !== c && o.alive && o.dna.type === 'omnivore'
+            && (o.sleeping || o.matingWith !== null || o.energy < 30));
+        if (vo) { tx = vo.x; ty = vo.y; c.packTarget = vo; c.status = 'HUNTING OMNIVORE'; }
       }
-      // Weak omnivore <10% energy
+      // Corpses (omnidirectional smell)
       if (tx === null) {
-        const wo = findInCone(c, (lists.omnis || []).filter(o => o.energy < 30), CONE_RANGE, CONE_ARC);
-        if (wo) { tx = wo.x; ty = wo.y; c.packTarget = wo; c.status = 'HUNTING OMNIVORE'; }
-      }
-      // Corpses
-      if (tx === null) {
-        const nc = findNearest(c, corpses, c.dna.sense);
+        const nc = gridNearest(c.x, c.y, sgCorpses, c.dna.sense, null);
         if (nc) { tx = nc.x; ty = nc.y; c.packTarget = null; c.status = 'SCAVENGING'; }
       }
-      // Herbivores in cone
+      // Herbivores in cone — grid-accelerated + scored by hunt memory
       if (tx === null) {
-        const prey = findInCone(c, lists.herbs || [], CONE_RANGE, CONE_ARC);
-        if (prey) { tx = prey.x; ty = prey.y; c.packTarget = prey; c.status = 'CHASING'; }
+        const rawCands = sgCreatures ? sgCreatures.query(c.x, c.y, CONE_RANGE) : [];
+        const heading = Math.atan2(c.vy, c.vx);
+        const spd = Math.sqrt(c.vx*c.vx+c.vy*c.vy);
+        const useCone = spd > 0.1;
+        const candidates = rawCands.filter(h => {
+          if (!h.alive || h === c || h.dna.type !== 'herbivore') return false;
+          if (!useCone) return true;
+          const dx = h.x-c.x, dy = h.y-c.y;
+          let diff = Math.atan2(dy,dx) - heading;
+          while (diff >  Math.PI) diff -= 2*Math.PI;
+          while (diff < -Math.PI) diff += 2*Math.PI;
+          return Math.abs(diff) <= CONE_ARC;
+        });
+        if (candidates.length > 0) {
+          // Score each by success rate + proximity; experienced hunters chase the right prey
+          let best = null, bestScore = -1;
+          for (const h of candidates) {
+            const rate = huntSuccessRate(c, 'herbivore');
+            const proximity = 1 - dist(c, h) / CONE_RANGE;
+            // Intelligence factor: weight success rate more heavily with age
+            const intFactor = Math.min(1, c.age / 800);
+            const score = proximity * (1 - intFactor) + rate * intFactor * proximity;
+            if (score > bestScore) { bestScore = score; best = h; }
+          }
+          if (best) { tx = best.x; ty = best.y; c.packTarget = best; c.status = 'CHASING'; }
+        }
       }
-      // Follow pheromone trail
-      if (tx === null && pheroHerb) {
-        const grad = pheroGradient(pheroHerb, c.x, c.y);
-        const mag  = Math.sqrt(grad.dx*grad.dx + grad.dy*grad.dy);
+      // Follow pheromone trails when no direct target
+      if (tx === null && (pheroHerb || pheroOmni)) {
+        // Combine herb (full) + omni (60%) gradient signals
+        let gdx = 0, gdy = 0;
+        if (pheroHerb) { const g = pheroGradient(pheroHerb, c.x, c.y); gdx += g.dx; gdy += g.dy; }
+        if (pheroOmni) { const g = pheroGradient(pheroOmni, c.x, c.y); gdx += g.dx * 0.6; gdy += g.dy * 0.6; }
+        const mag = Math.sqrt(gdx*gdx + gdy*gdy);
         if (mag > 0.03) {
-          c.vx += (grad.dx/mag) * 0.3; c.vy += (grad.dy/mag) * 0.3;
+          c.vx += (gdx/mag) * 0.3; c.vy += (gdy/mag) * 0.3;
           c.packTarget = null; c.status = 'TRACKING SCENT';
         } else { c.packTarget = null; c.status = 'PATROLLING'; }
       } else if (tx === null) { c.packTarget = null; c.status = 'PATROLLING'; }
 
       if (tx === null && mateElig) {
-        const mate = findNearest(c,
-          (lists.carns || []).filter(o => o !== c &&
-            o.energy >= MATE_ENERGY && o.matingCooldown === 0 && !o.matingWith && o.mateCount < MAX_MATES),
-          c.dna.sense * 0.5);
+        const mate = gridNearest(c.x, c.y, sgCreatures, c.dna.sense * 0.5,
+          o => o !== c && o.dna.type === 'carnivore' && o.energy >= MATE_ENERGY
+            && o.matingCooldown === 0 && !o.matingWith && o.mateCount < MAX_MATES);
         if (mate) { tx = mate.x; ty = mate.y; c.status = 'SEEKING MATE'; }
       }
     }
   }
 
+  // Memory-biased wandering: drift toward last known food patch when no other goal
   if (tx !== null) {
     const dx = tx - c.x, dy = ty - c.y;
     const d = Math.sqrt(dx*dx + dy*dy) + 0.001;
     c.vx += (dx/d) * 0.4; c.vy += (dy/d) * 0.4;
+  } else if ((c.dna.type === 'herbivore' || c.dna.type === 'omnivore')
+             && c.memFoodX !== null && c.memFoodAge < 400) {
+    // Bias toward remembered food patch; strength fades with time
+    const memStr = Math.max(0, 1 - c.memFoodAge / 400) * 0.25;
+    const dx = c.memFoodX - c.x, dy = c.memFoodY - c.y;
+    const d = Math.sqrt(dx*dx + dy*dy) + 0.001;
+    c.vx += (dx/d) * memStr; c.vy += (dy/d) * memStr;
+    c.vx += (Math.random()-0.5) * 0.3; c.vy += (Math.random()-0.5) * 0.3;
   } else {
     c.vx += (Math.random()-0.5) * 0.5; c.vy += (Math.random()-0.5) * 0.5;
   }
 
   // ── FLOCKING (Boids) ────────────────────────────────────────────────────────
-  // Neighbours = same type, alive, not sleeping, within flock radius
   const flockRadius = c.dna.sense * 0.6;
-  const sepRadius   = c.dna.size * 3.5; // personal space
+  const sepRadius   = c.dna.size * 3.5;
 
-  let sepX = 0, sepY = 0, sepN = 0;   // separation
-  let aliX = 0, aliY = 0, aliN = 0;   // alignment
-  let cohX = 0, cohY = 0, cohN = 0;   // cohesion
+  let sepX = 0, sepY = 0, sepN = 0;
+  let aliX = 0, aliY = 0, aliN = 0;
+  let cohX = 0, cohY = 0, cohN = 0;
 
-  for (const o of creatures) {
-    if (!o.alive || o === c || o.sleeping || o.dna.type !== c.dna.type) continue;
+  // Use spatial grid — only checks nearby cells instead of all creatures
+  const flockNeighbours = sgCreatures ? sgCreatures.query(c.x, c.y, flockRadius) : [];
+  for (const o of flockNeighbours) {
+    if (o === c || o.sleeping || o.dna.type !== c.dna.type) continue;
     const dx = o.x - c.x, dy = o.y - c.y;
     const d2 = dx*dx + dy*dy;
-    const fd = flockRadius * flockRadius;
-    if (d2 > fd) continue;
     const d = Math.sqrt(d2) + 0.001;
 
     // Separation — push away from very close neighbours
@@ -880,14 +1234,16 @@ function updateCreature(c) {
     }
     // Shepherd pull: if a nearby sated omnivore is shepherding, be drawn toward it
     const lists = window._simLists || {};
-    const shepherd = findNearest(c,
-      (lists.omnis || []).filter(o => o.alive && o.energy >= 270),
-      c.dna.sense * 1.6);
+    const shepherd = gridNearest(c.x, c.y, sgCreatures, c.dna.sense * 1.6,
+      o => o !== c && o.dna.type === 'omnivore' && o.alive && o.energy >= 270);
     if (shepherd) {
       const sdx = shepherd.x - c.x, sdy = shepherd.y - c.y;
       const sd  = Math.sqrt(sdx*sdx+sdy*sdy)+0.001;
-      const shepherdPull = fs * 0.22; // stronger than normal flock cohesion
-      c.vx += (sdx/sd) * shepherdPull; c.vy += (sdy/sd) * shepherdPull;
+      // Don't pull toward shepherd if already mid-flee (shepherd pull irrelevant)
+      if (c.status !== 'FLEEING') {
+        const shepherdPull = fs * 0.22;
+        c.vx += (sdx/sd) * shepherdPull; c.vy += (sdy/sd) * shepherdPull;
+      }
       // Shepherded herbivores share the omnivore's cone vision range (boosted)
       c._shepherdRef  = shepherd; // keep reference so we can draw the distinction
       c._shepherdVision = shepherd.dna.sense * 2.4;
@@ -909,7 +1265,7 @@ function updateCreature(c) {
   // stamina gene = efficiency multiplier; low stamina = more energy per sprint tick
   let maxSpd = c.dna.speed;
   const canSprint = (c.dna.type === 'carnivore' || c.dna.type === 'omnivore')
-                    && tx !== null && c.energy > 40  // need >13% energy to sprint
+                    && tx !== null && c.energy > 75  // need >25% energy to sprint
                     && (c.status === 'CHASING' || c.status === 'STALKING'
                         || c.status === 'PACK FLANKING' || c.status === 'HUNTING MATING PREY'
                         || c.status === 'CANNIBALISING');
@@ -933,11 +1289,15 @@ function updateCreature(c) {
     for (let i = foods.length - 1; i >= 0; i--) {
       if (dist(c, foods[i]) < c.dna.size + 4) {
         c.energy += foods[i].energy;
+        // Record memory of this food location
+        c.memFoodX = foods[i].x; c.memFoodY = foods[i].y; c.memFoodAge = 0;
         foods.splice(i, 1);
         break;
       }
     }
   }
+  // Age memory each tick
+  if (c.memFoodX !== null) c.memFoodAge++;
   // Omnivores scavenge corpses (all types)
   if (c.dna.type === 'omnivore' && !isSated) {
     for (let i = corpses.length - 1; i >= 0; i--) {
@@ -951,6 +1311,11 @@ function updateCreature(c) {
 
   // Carnivores hunt ONLY when below sated threshold (90%)
   if (c.dna.type === 'carnivore' && !isSated) {
+    // Record hunt attempt periodically while actively chasing
+    if (c.packTarget && c.packTarget.alive && c.age % 60 === 0) {
+      const pKey = c.packTarget.dna.type + (c.packTarget.sleeping ? '_sleep' : c.packTarget.matingWith ? '_mating' : '');
+      c.memHuntAttempts[pKey] = (c.memHuntAttempts[pKey] || 0) + 1;
+    }
     let ate = false;
     for (const prey of creatures) {
       if (!prey.alive || prey === c) continue;
@@ -960,7 +1325,7 @@ function updateCreature(c) {
       const isWeakCarnivore = prey.dna.type === 'carnivore'
                               && prey.energy < 30 && prey.age < c.age * 0.5;
       const isVulnOmnivore = prey.dna.type === 'omnivore'
-                              && (prey.sleeping || prey.energy < 30);
+                              && (prey.sleeping || prey.matingWith !== null || prey.energy < 30);
       const edible = isPurple || isHerbivore || (isSleeping && prey !== c) || isWeakCarnivore || isVulnOmnivore;
       if (edible && dist(c, prey) < c.dna.size + prey.dna.size) {
         c.energy += prey.energy * 0.6;
@@ -980,6 +1345,10 @@ function updateCreature(c) {
             }
           }
         }
+        // Record successful hunt in memory
+        const pKey = prey.dna.type + (prey.sleeping ? '_sleep' : prey.matingWith ? '_mating' : '');
+        c.memHuntWins[pKey]    = (c.memHuntWins[pKey]    || 0) + 1;
+        c.memHuntAttempts[pKey]= (c.memHuntAttempts[pKey]|| 0) + 1;
         prey.alive = false;
         ate = true;
         break;
@@ -1041,6 +1410,27 @@ function updateSim() {
     }
   }
 
+  // Seeds disperse food based on foodRate, then expire
+  for (let i = seeds.length - 1; i >= 0; i--) {
+    const s = seeds[i];
+    s.age++;
+    if (foods.length < params.maxFood) {
+      // Use the same growth chance as normal food spread, but slightly boosted
+      const seedChance = params.foodRate * 0.0005;
+      if (Math.random() < seedChance) {
+        const angle = Math.random() * Math.PI * 2;
+        const r = 8 + Math.random() * 60;
+        const nx = s.x + Math.cos(angle) * r;
+        const ny = s.y + Math.sin(angle) * r;
+        if (nx > 0 && nx < canvas.width && ny > 0 && ny < canvas.height) {
+          foods.push(createFood(nx, ny));
+          s.spawned++;
+        }
+      }
+    }
+    if (s.spawned >= s.budget) seeds.splice(i, 1);
+  }
+
   // Deposit pheromones — alive, non-sleeping agents leave scent trails
   if (pheroHerb && pheroCarn) {
     for (const c of creatures) {
@@ -1050,9 +1440,13 @@ function updateSim() {
       // Omnivores deposit on their own channel — distinct cyan, carnivores can still track
       else if (c.dna.type === 'omnivore') depositPhero(pheroOmni, c.x, c.y, 0.18);
     }
-    updatePhero(pheroHerb);
-    updatePhero(pheroCarn);
-    updatePhero(pheroOmni);
+    // Diffuse only every 3 ticks — evaporation is slow enough that this is imperceptible
+    if (tick % 3 === 0) {
+      updatePhero(pheroHerb);
+      updatePhero(pheroCarn);
+      updatePhero(pheroOmni);
+    }
+    pheroNeedsRedraw = true; // deposits happened, mark dirty
   }
 
   // Pre-build filtered lists once per tick for performance
@@ -1064,20 +1458,46 @@ function updateSim() {
   const _sleeping   = _alive.filter(c => c.sleeping);
   window._simLists  = { alive: _alive, herbs: _herbs, carns: _carns, omnis: _omnis, mating: _mating, sleeping: _sleeping };
 
+  rebuildGrids(); // spatial index for O(1) neighbour queries this tick
   for (const c of creatures) updateCreature(c);
 
   // Decay corpses over time
-  for (const corp of corpses) corp.decay++;
-  corpses = corpses.filter(corp => corp.decay < 300);
+  for (const corp of corpses) {
+    corp.decay++;
+    // Fresh corpses keep emitting scent — re-deposit each tick, fading with age
+    if (corp.decay % 8 === 0 && corp.decay < 300) {
+      const strength = (1 - corp.decay / 600) * 0.18;
+      if (pheroCarn) depositPhero(pheroCarn, corp.x, corp.y, strength);
+      if (pheroOmni) depositPhero(pheroOmni, corp.x, corp.y, strength * 0.7);
+    }
+  }
+  corpses = corpses.filter(corp => corp.decay < 600); // 2× longer life
 
   creatures = creatures.filter(c => c.alive || (c.age++ < 60));
 
-  if (creatures.filter(c => c.dna.type === 'herbivore').length > 500)
-    creatures = creatures.filter(c => c.dna.type !== 'herbivore' || Math.random() > 0.1);
-  if (creatures.filter(c => c.dna.type === 'carnivore').length > 500)
-    creatures = creatures.filter(c => c.dna.type !== 'carnivore' || Math.random() > 0.1);
-  if (creatures.filter(c => c.dna.type === 'omnivore').length > 500)
-    creatures = creatures.filter(c => c.dna.type !== 'omnivore' || Math.random() > 0.1);
+  // Soft density cap — overcrowding raises metabolism rather than killing randomly
+  // This creates natural pressure without sudden die-offs
+  const hCount = creatures.filter(c => c.alive && c.dna.type === 'herbivore').length;
+  const cCount = creatures.filter(c => c.alive && c.dna.type === 'carnivore').length;
+  const oCount = creatures.filter(c => c.alive && c.dna.type === 'omnivore').length;
+  if (hCount > 150 || cCount > 60 || oCount > 80) {
+    for (const c of creatures) {
+      if (!c.alive) continue;
+      const cnt = c.dna.type === 'herbivore' ? hCount
+                : c.dna.type === 'carnivore' ? cCount : oCount;
+      const cap = c.dna.type === 'herbivore' ? 150
+                : c.dna.type === 'carnivore' ? 60 : 80;
+      if (cnt > cap) {
+        const overRatio = Math.min(1, (cnt - cap) / cap);
+        c.energy -= 0.03 * overRatio; // flat density penalty // extra pressure proportional to overcrowding
+      }
+    }
+  }
+  // Hard failsafe — only kicks in at extreme numbers to prevent memory issues
+  if (creatures.filter(c => c.alive).length > 600)
+    creatures = creatures.filter(c => !c.alive || Math.random() > 0.05);
+
+  if (tick % 300 === 0) updateSpeciesCentroids();
 
   if (tick % 60 === 0) {
     const alive = creatures.filter(c => c.alive);
@@ -1090,10 +1510,40 @@ function updateSim() {
 }
 
 // ── Draw ──────────────────────────────────────────────────────────────────────
+
+// Draw a polygon or circle at cx,cy with radius r
+// sides=0 → circle, sides=4 → diamond, sides=N → regular polygon
+function drawShape(ctx2, cx, cy, r, sides) {
+  ctx2.beginPath();
+  if (sides === 0) {
+    ctx2.arc(cx, cy, r, 0, Math.PI * 2);
+  } else if (sides === 4) {
+    // Diamond (pointed top/bottom)
+    ctx2.moveTo(cx,     cy - r * 1.3);
+    ctx2.lineTo(cx + r, cy);
+    ctx2.lineTo(cx,     cy + r * 1.3);
+    ctx2.lineTo(cx - r, cy);
+    ctx2.closePath();
+  } else {
+    // Regular polygon (hexagon=6, triangle=3, pentagon=5 etc.)
+    for (let i = 0; i < sides; i++) {
+      const angle = (i / sides) * Math.PI * 2 - Math.PI / 2;
+      const px = cx + Math.cos(angle) * r;
+      const py = cy + Math.sin(angle) * r;
+      i === 0 ? ctx2.moveTo(px, py) : ctx2.lineTo(px, py);
+    }
+    ctx2.closePath();
+  }
+}
+
 function drawCreature(c) {
   const alive = c.alive;
   const alpha = alive ? 1.0 : Math.max(0, 1 - (c.age - 3940) / 60);
   if (alpha <= 0) return;
+  // Viewport culling: skip expensive drawing for off-screen creatures
+  const cullR = c.dna.size * 4 + 12; // generous margin for glow/ring
+  if (c.x + cullR < 0 || c.x - cullR > canvas.width ||
+      c.y + cullR < 0 || c.y - cullR > canvas.height) return;
 
   const isH      = c.dna.type === 'herbivore';
   const isO      = c.dna.type === 'omnivore';
@@ -1119,19 +1569,16 @@ function drawCreature(c) {
   ctx.save();
   ctx.globalAlpha = alpha;
 
-  // Trail (break on wrap)
-  if (alive && c.trail.length > 1) {
+  // Trail — skip when creature is near (but not quite at) the viewport edge
+  const nearViewport = c.x > -40 && c.x < canvas.width+40 && c.y > -40 && c.y < canvas.height+40;
+  if (alive && c.trail.length > 1 && nearViewport) {
     ctx.strokeStyle = trailColor;
     ctx.lineWidth = 1;
-
     ctx.beginPath();
     ctx.moveTo(c.trail[0].x, c.trail[0].y);
-
     for (let i = 1; i < c.trail.length; i++) {
       const a = c.trail[i - 1];
       const b = c.trail[i];
-
-      // If the segment "teleports" across the canvas, don't connect it
       if (Math.abs(b.x - a.x) > canvas.width / 2 || Math.abs(b.y - a.y) > canvas.height / 2) {
         ctx.stroke();
         ctx.beginPath();
@@ -1168,7 +1615,7 @@ function drawCreature(c) {
       ctx.closePath();
       ctx.strokeStyle = `rgba(${glowRGB},0.12)`; ctx.fillStyle = `rgba(${glowRGB},0.04)`;
       ctx.lineWidth = 1; ctx.fill(); ctx.stroke();
-      ctx.beginPath(); ctx.arc(c.x, c.y, c.dna.sense * 1.2, 0, Math.PI * 2);
+      ctx.beginPath(); ctx.arc(c.x, c.y, c.dna.sense * 0.6, 0, Math.PI * 2);
       ctx.strokeStyle = `rgba(${glowRGB},0.08)`; ctx.setLineDash([2,6]); ctx.stroke();
     } else {
       // Carnivore: cone only
@@ -1228,9 +1675,9 @@ function drawCreature(c) {
     ctx.stroke();
   }
 
-  // Outer glow  ✅ (dimmed for sated omnivores so the big cyan disc isn't blinding)
+  // Outer glow — dimmed for sated omnivores so shepherd ring reads clearly
   if (alive) {
-    const glowA = (isO && c.energy >= 270) ? 0.12 : 0.3; // <-- tweak 0.12–0.18 if you want even dimmer
+    const glowA = (isO && c.energy >= 270) ? 0.12 : 0.3;
     const g = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, r * 3);
     g.addColorStop(0, `rgba(${glowRGB},${glowA})`);
     g.addColorStop(1, `rgba(${glowRGB},0)`);
@@ -1240,27 +1687,11 @@ function drawCreature(c) {
     ctx.fill();
   }
 
-  // Body
+  // Body — shape determined by species (colour stays type-based)
+  const sp = c.speciesId ? speciesRegistry[c.speciesId] : null;
+  const bodyShape = sp ? sp.shape : (isH ? 6 : isO ? 0 : 4);
   ctx.beginPath();
-  if (isH) {
-    // Hexagon
-    for (let i = 0; i < 6; i++) {
-      const angle = (i / 6) * Math.PI * 2 - Math.PI / 6;
-      const px = c.x + Math.cos(angle) * r, py = c.y + Math.sin(angle) * r;
-      i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
-    }
-    ctx.closePath();
-  } else if (isO) {
-    // Circle (omnivore)
-    ctx.arc(c.x, c.y, r, 0, Math.PI * 2);
-  } else {
-    // Diamond (carnivore)
-    ctx.moveTo(c.x,     c.y - r * 1.3);
-    ctx.lineTo(c.x + r, c.y);
-    ctx.lineTo(c.x,     c.y + r * 1.3);
-    ctx.lineTo(c.x - r, c.y);
-    ctx.closePath();
-  }
+  drawShape(ctx, c.x, c.y, r, bodyShape);
 
   if (alive) {
     ctx.fillStyle = baseColor;
@@ -1276,14 +1707,15 @@ function drawCreature(c) {
     ctx.stroke();
   }
 
-  // Shepherding indicator ring ✅ (omnivore, sated) — drawn AFTER body so it’s separate from icon
+
+  // Shepherding indicator ring (omnivore, sated) — drawn AFTER body so it's separate from icon
   if (alive && isO && c.energy >= 270) {
     ctx.save();
     ctx.shadowBlur = 0;
     ctx.shadowColor = 'transparent';
 
     // Main transparency knob for the ring (independent of the icon)
-    ctx.globalAlpha = alpha * 0.18; // try 0.10–0.25
+    ctx.globalAlpha = alpha * 0.18;
 
     const rr = r * 7.0 + Math.sin(tick * 0.05) * 2;
     ctx.setLineDash([5, 8]);
@@ -1307,16 +1739,17 @@ function drawCreature(c) {
     ctx.restore();
   }
 
+  // (duplicate shepherd ring removed)
+
   // Direction nub + sprint streak
   if (alive) {
     const angle = Math.atan2(c.vy, c.vx);
     if (c.sprinting) {
-      // Orange motion streak behind the carnivore/omnivore
+      // Orange motion streak behind the carnivore
       ctx.beginPath();
       ctx.moveTo(c.x, c.y);
       ctx.lineTo(c.x - Math.cos(angle) * r * 4, c.y - Math.sin(angle) * r * 4);
-      const st = c.dna.stamina ?? 1.0;
-      ctx.strokeStyle = `rgba(255,160,50,${0.3 + st * 0.4})`;
+      ctx.strokeStyle = `rgba(255,160,50,${0.3 + (c.dna.stamina ?? 1.0) * 0.4})`;
       ctx.lineWidth = 2;
       ctx.stroke();
     }
@@ -1344,6 +1777,44 @@ function drawCreature(c) {
   ctx.restore();
 }
 
+function drawSeed(s) {
+  const progress = Math.min(1, s.spawned / s.budget);
+  const alpha = 1 - progress * 0.5; // fades as it exhausts
+  const pulse = 0.7 + 0.3 * Math.sin(tick * 0.04 + s.x);
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  // Outer glow ring
+  ctx.beginPath();
+  ctx.arc(s.x, s.y, 7 * pulse, 0, Math.PI * 2);
+  ctx.strokeStyle = `rgba(40,160,50,0.45)`;
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([3, 4]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  // Core
+  ctx.beginPath();
+  ctx.arc(s.x, s.y, 3.5, 0, Math.PI * 2);
+  ctx.fillStyle = `hsl(120,60%,${28 - progress*10}%)`; // dark green
+  ctx.shadowColor = '#2d8a30';
+  ctx.shadowBlur = 8;
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  // Small progress tick marks around ring (how much budget remains)
+  const ticks = 8;
+  for (let i = 0; i < ticks; i++) {
+    const filled = i / ticks < (1 - progress);
+    if (!filled) continue;
+    const a = (i / ticks) * Math.PI * 2 - Math.PI / 2;
+    ctx.beginPath();
+    ctx.moveTo(s.x + Math.cos(a)*5, s.y + Math.sin(a)*5);
+    ctx.lineTo(s.x + Math.cos(a)*7, s.y + Math.sin(a)*7);
+    ctx.strokeStyle = `rgba(60,200,70,0.7)`;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
 function drawFood(f) {
   ctx.save();
   ctx.beginPath();
@@ -1357,7 +1828,7 @@ function drawFood(f) {
 }
 
 function drawCorpse(corp) {
-  const age = corp.decay / 300; // 0=fresh, 1=gone
+  const age = corp.decay / 600; // 0=fresh, 1=gone — matches 600-tick lifetime
   const alpha = 1 - age * 0.8;
   const r = 3 + (1 - age) * 2;
   ctx.save();
@@ -1382,7 +1853,7 @@ function drawChart() {
   chartCtx.clearRect(0, 0, w, h);
   chartCtx.fillStyle = '#060810';
   chartCtx.fillRect(0, 0, w, h);
-  const all = [...history.h, ...history.c, ...history.f];
+  const all = [...history.h, ...history.c, ...history.o, ...history.f];
   const maxVal = Math.max(...all, 1);
   if (history.h.length < 2) return;
 
@@ -1409,28 +1880,34 @@ function render() {
   ctx.fillStyle = 'rgba(6,8,16,0.85)';
   ctx.fillRect(0, 0, W, H);
 
-  // Draw pheromone layers as subtle coloured mist
+  // Pheromone render — update offscreen canvas when dirty, then blit in one drawImage call
   if (pheroHerb && pheroCarn && params.showPhero) {
-    for (let gy = 0; gy < pheroH; gy++) {
-      for (let gx = 0; gx < pheroW; gx++) {
-        const hi = pheroHerb[pheroIdx(gx, gy)];
-        const ci = pheroCarn[pheroIdx(gx, gy)];
-        const oi = pheroOmni ? pheroOmni[pheroIdx(gx, gy)] : 0;
-        const px = gx * PHERO_CELL, py = gy * PHERO_CELL;
-        if (hi > 0.03) {
-          ctx.fillStyle = `rgba(0,245,196,${(hi * 0.25).toFixed(3)})`; // teal-green
-          ctx.fillRect(px, py, PHERO_CELL, PHERO_CELL);
-        }
-        if (oi > 0.03) {
-          ctx.fillStyle = `rgba(0,210,255,${(oi * 0.28).toFixed(3)})`; // distinct bright cyan
-          ctx.fillRect(px, py, PHERO_CELL, PHERO_CELL);
-        }
-        if (ci > 0.03) {
-          ctx.fillStyle = `rgba(255,77,109,${(ci * 0.22).toFixed(3)})`; // red
-          ctx.fillRect(px, py, PHERO_CELL, PHERO_CELL);
+    if (pheroNeedsRedraw && tick % 5 === 0 && pheroCtx2) {
+      pheroCtx2.clearRect(0, 0, pheroCanvas.width, pheroCanvas.height);
+      for (let gy = 0; gy < pheroH; gy++) {
+        for (let gx = 0; gx < pheroW; gx++) {
+          const hi = pheroHerb[pheroIdx(gx, gy)];
+          const ci = pheroCarn[pheroIdx(gx, gy)];
+          const oi = pheroOmni ? pheroOmni[pheroIdx(gx, gy)] : 0;
+          const px = gx * PHERO_CELL, py = gy * PHERO_CELL;
+          if (hi > 0.03) {
+            pheroCtx2.fillStyle = `rgba(0,245,196,${Math.min(1,hi*0.25).toFixed(3)})`;
+            pheroCtx2.fillRect(px, py, PHERO_CELL, PHERO_CELL);
+          }
+          if (oi > 0.03) {
+            pheroCtx2.fillStyle = `rgba(0,210,255,${Math.min(1,oi*0.28).toFixed(3)})`;
+            pheroCtx2.fillRect(px, py, PHERO_CELL, PHERO_CELL);
+          }
+          if (ci > 0.03) {
+            pheroCtx2.fillStyle = `rgba(255,77,109,${Math.min(1,ci*0.22).toFixed(3)})`;
+            pheroCtx2.fillRect(px, py, PHERO_CELL, PHERO_CELL);
+          }
         }
       }
+      pheroNeedsRedraw = false;
     }
+    // Single drawImage blit — far cheaper than per-cell fillRect every frame
+    if (pheroCanvas) ctx.drawImage(pheroCanvas, 0, 0);
   }
 
   if (selectedCreature && selectedCreature.alive) {
@@ -1444,6 +1921,7 @@ function render() {
   }
 
   for (const corp of corpses) drawCorpse(corp);
+  for (const s of seeds) drawSeed(s);
   for (const f of foods) drawFood(f);
   for (const c of creatures) drawCreature(c);
 }
@@ -1455,7 +1933,51 @@ function updateUI() {
   document.getElementById('cPop').textContent   = alive.filter(c => c.dna.type === 'carnivore').length;
   const oPop = document.getElementById('oPop'); if (oPop) oPop.textContent = alive.filter(c => c.dna.type === 'omnivore').length;
   document.getElementById('fPop').textContent   = foods.length;
+  const sPop2 = document.getElementById('sPop'); if (sPop2) sPop2.textContent = seeds.length;
   document.getElementById('genNum').textContent  = generation;
+
+  // Species panel — only rebuild DOM when membership actually changes (not every frame)
+  const speciesEntries = Object.values(speciesRegistry);
+  const sc = document.getElementById('speciesCount');
+  if (sc) sc.textContent = `(${speciesEntries.length})`;
+  const spCounts = {};
+  for (const c of creatures) { if (c.alive && c.speciesId) spCounts[c.speciesId] = (spCounts[c.speciesId]||0)+1; }
+  const newFingerprint = speciesEntries
+    .filter(sp => (spCounts[sp.id]||0) > 0)
+    .map(sp => sp.id + ':' + (spCounts[sp.id]||0))
+    .join('|');
+  const grid = document.getElementById('speciesGrid');
+  if (grid && newFingerprint !== grid.dataset.fp) {
+    grid.dataset.fp = newFingerprint;
+    grid.innerHTML = '';
+    for (const sp of speciesEntries) {
+      const cnt = spCounts[sp.id] || 0;
+      if (cnt === 0) continue;
+      const cell = document.createElement('div');
+      cell.className = 'species-cell';
+      cell.title = `Click to spawn ${sp.type} (${sp.id.slice(3,8)}) — qty set by spawn selector`;
+      // Use data attribute + global handler — avoids closure/DOM timing issues
+      cell.dataset.sid = sp.id;
+      cell.addEventListener('click', function() { spawnFromSpecies(this.dataset.sid); });
+      // Mini canvas icon
+      const mc = document.createElement('canvas');
+      mc.width = 24; mc.height = 24;
+      const mctx = mc.getContext('2d');
+      const col = sp.type === 'herbivore' ? '#00f5c4'
+                : sp.type === 'omnivore'  ? '#2bbcff' : '#ff4d6d';
+      mctx.strokeStyle = col;
+      mctx.fillStyle   = col + '55';
+      mctx.lineWidth   = 1.5;
+      drawShape(mctx, 12, 12, 8, sp.shape);
+      mctx.fill();
+      mctx.stroke();
+      cell.appendChild(mc);
+      const lbl = document.createElement('div');
+      lbl.textContent = cnt;
+      cell.appendChild(lbl);
+      grid.appendChild(cell);
+    }
+  }
   document.getElementById('tickNum').textContent = tick;
 
   if (selectedCreature) {
@@ -1466,7 +1988,8 @@ function updateUI() {
     } else {
       const energyPct = Math.round((c.energy / 300) * 100);
       const isSated = c.energy >= 270;
-      const maxedOut = c.mateCount >= 3;
+      const mateMax  = c.dna.type === 'herbivore' ? 3 : 5;
+      const maxedOut = c.mateCount >= mateMax;
       const stateTag = c.sleeping
         ? `<br><b style="color:#a0b4f0">💤 SLEEPING (${c.sleepTicks} ticks)</b>`
         : c.matingWith
@@ -1483,13 +2006,24 @@ function updateUI() {
       const staminaBar = (d.type === 'carnivore' || d.type === 'omnivore')
         ? `<br><b>STAMINA:</b> <b style="opacity:0.5">gene ${(d.stamina??1).toFixed(2)}</b>${c.sprinting ? ' <b style="color:#ffa032">⚡ SPRINTING</b>' : ''}`
         : '';
+      // Predator intelligence summary
+      let huntMemHTML = '';
+      if (d.type === 'carnivore') {
+        const entries = Object.entries(c.memHuntAttempts || {})
+          .filter(([k,v]) => v >= 3)
+          .map(([k,v]) => {
+            const wins = (c.memHuntWins || {})[k] || 0;
+            return `${k.split('_')[0][0].toUpperCase()}:${Math.round(wins/v*100)}%`;
+          });
+        if (entries.length) huntMemHTML = `<br><b style="opacity:0.5">HUNT MEM: ${entries.join(' ')}</b>`;
+      }
       info.innerHTML = `
         <b>TYPE:</b> ${d.type.toUpperCase()}<br>
         <b>STATUS:</b> <b style="color:var(--accent)">${c.status || '—'}</b><br>
         <b>ENERGY:</b> ${Math.round(c.energy)} <b style="opacity:0.5">(${energyPct}%)</b><br>
         <b>AGE:</b> ${c.age}<br>
         <b>GEN:</b> ${c.gen}<br>
-        <b>MATINGS:</b> ${c.mateCount}/3${maxedOut ? ' <b style="color:var(--accent2)">RETIRED</b>' : ''}<br>
+        <b>MATINGS:</b> ${c.mateCount}/${mateMax}${maxedOut ? ' <b style="color:var(--accent2)">RETIRED</b>' : ''}<br>
         <br>
         <b>— GENOME —</b><br>
         <b>SPEED:</b> ${d.speed.toFixed(2)}<br>
@@ -1497,7 +2031,8 @@ function updateUI() {
         <b>SIZE:</b> ${d.size.toFixed(2)}<br>
         <b>FERTILITY:</b> ${(d.fertility*1000).toFixed(2)}‰<br>
         <b>METABOLISM:</b> ${d.metabolism.toFixed(3)}<br>
-        <b>AGGRESSION:</b> ${d.aggression.toFixed(2)}${staminaBar}${stateTag}
+        <b>AGGRESSION:</b> ${d.aggression.toFixed(2)}${staminaBar}<br>
+        <b>SPECIES:</b> <b style="opacity:0.5">${c.speciesId ? c.speciesId.slice(3,8) : '?'}</b>${huntMemHTML}${stateTag}
       `;
     }
   }
@@ -1572,6 +2107,15 @@ resize();
 resetSim();
 loop();
 
+function toggleLegend() {
+  const body = document.getElementById('legendBody');
+  const btn  = document.getElementById('legendToggle');
+  const collapsed = body.style.display === 'none';
+  body.style.display = collapsed ? '' : 'none';
+  btn.textContent = collapsed ? '▼' : '▶';
+  btn.classList.toggle('collapsed', !collapsed);
+}
+
 function togglePhero() {
   params.showPhero = !params.showPhero;
   const btn = document.getElementById('pheroBtn');
@@ -1593,10 +2137,12 @@ function setQty(n) {
   document.getElementById('spawnHlbl').textContent = n;
   document.getElementById('spawnClbl').textContent = n;
   document.getElementById('spawnOlbl').textContent = n;
+  document.getElementById('spawnSlbl').textContent = n;
   document.getElementById('spawnFlbl').textContent = n;
   document.getElementById('spawnHs').textContent = plural('S');
   document.getElementById('spawnCs').textContent = plural('S');
   document.getElementById('spawnOs').textContent = plural('S');
+  document.getElementById('spawnSs').textContent = plural('S');
 }
 </script>
 </body>
