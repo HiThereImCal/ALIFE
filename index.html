@@ -206,9 +206,48 @@
     color: var(--border); border-top: 1px solid var(--border);
     background: var(--panel); display: flex; justify-content: space-between; flex-shrink: 0;
   }
+
+  /* Weather/Season banner */
+  #weatherBanner {
+    position: fixed; top: 56px; left: 50%; transform: translateX(-50%);
+    background: rgba(10,14,26,0.92); border: 1px solid var(--accent3);
+    color: var(--accent3); font-family: 'Share Tech Mono', monospace;
+    font-size: 11px; letter-spacing: 3px; text-transform: uppercase;
+    padding: 8px 24px 7px; pointer-events: none; z-index: 100;
+    opacity: 0; transition: opacity 0.5s;
+    text-shadow: 0 0 12px rgba(255,209,102,0.6);
+    box-shadow: 0 0 20px rgba(255,209,102,0.15);
+    text-align: center; min-width: 240px;
+  }
+  #weatherBanner.visible { opacity: 1; }
+  #weatherBannerSub {
+    font-size: 8px; letter-spacing: 2px; opacity: 0.65;
+    margin-top: 3px; text-transform: uppercase;
+  }
+
+  /* Season progress bar under header */
+  #seasonBar {
+    position: fixed; top: 54px; left: 0; right: 220px;
+    height: 2px; z-index: 99; pointer-events: none;
+    background: transparent;
+  }
+  #seasonBarFill {
+    height: 100%; width: 0%;
+    transition: background 1s;
+  }
+
+  /* Selected species highlight ring */
+  .species-cell.selected-species {
+    border-color: var(--accent3) !important;
+    background: rgba(255,209,102,0.12) !important;
+    box-shadow: 0 0 8px rgba(255,209,102,0.3);
+  }
 </style>
 </head>
 <body>
+
+<div id="weatherBanner"><div id="weatherBannerTitle"></div><div id="weatherBannerSub"></div></div>
+<div id="seasonBar"><div id="seasonBarFill"></div></div>
 
 <header>
   <div class="logo">ALIFE <span>/ SIM</span></div>
@@ -220,6 +259,7 @@
     <div class="stat"><div class="stat-val" id="sPop" style="color:#2d8a30">0</div><div class="stat-lbl">Seeds</div></div>
     <div class="stat"><div class="stat-val" id="genNum" style="color:#a29bfe">0</div><div class="stat-lbl">Generation</div></div>
     <div class="stat"><div class="stat-val" id="tickNum">0</div><div class="stat-lbl">Tick</div></div>
+    <div class="stat"><div class="stat-val" id="seasonDisplay" style="color:#ffd166">🌱</div><div class="stat-lbl">Season</div></div>
   </div>
   <a href="https://www.linkedin.com/in/callum-smith-55118071/" target="_blank" rel="noopener" class="by-cal-link">
     <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
@@ -238,8 +278,8 @@
       <button class="btn danger" onclick="resetSim()">↺ RESET</button>
       <div class="control-row">
         <div class="control-label">SPEED</div>
-        <input type="range" id="speedSlider" min="1" max="10" value="1" oninput="updateSpeed(this)">
-        <div class="val-display" id="speedVal">1</div>
+        <input type="range" id="speedSlider" min="0" max="13" value="2" oninput="updateSpeed(this)">
+        <div class="val-display" id="speedVal">1×</div>
       </div>
     </div>
     <div class="section">
@@ -303,6 +343,12 @@
     </div>
     <div class="section">
       <div class="section-title">Population Graph</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:5px;">
+        <div style="display:flex;align-items:center;gap:3px;font-size:8px;letter-spacing:1px;color:#00f5c4"><div style="width:8px;height:8px;background:#00f5c4;border-radius:1px;flex-shrink:0"></div>HERB</div>
+        <div style="display:flex;align-items:center;gap:3px;font-size:8px;letter-spacing:1px;color:#ff4d6d"><div style="width:8px;height:8px;background:#ff4d6d;border-radius:1px;flex-shrink:0"></div>CARN</div>
+        <div style="display:flex;align-items:center;gap:3px;font-size:8px;letter-spacing:1px;color:#2bbcff"><div style="width:8px;height:8px;background:#2bbcff;border-radius:1px;flex-shrink:0"></div>OMNI</div>
+        <div style="display:flex;align-items:center;gap:3px;font-size:8px;letter-spacing:1px;color:#ffd166"><div style="width:8px;height:8px;background:#ffd166;border-radius:1px;flex-shrink:0"></div>FOOD</div>
+      </div>
       <div class="mini-chart"><canvas id="chartCanvas"></canvas></div>
     </div>
     <div class="section">
@@ -330,6 +376,7 @@ const chartCtx = chartCanvas.getContext('2d');
 let creatures = [];
 let foods = [];
 let seeds = []; // Seeds generate food but can't be eaten
+let selectedSpeciesId = null; // for species highlight feature
 
 // ── Species registry ─────────────────────────────────────────────────────────
 // Each species = { id, type, shape, count } where shape is a polygon vertex count
@@ -597,6 +644,29 @@ const params = { foodRate: 8, maxFood: 120, mutRate: 10, flockStr: 10, showPhero
 const history = { h: [], c: [], o: [], f: [] };
 const MAX_HISTORY = 196;
 
+// ── Seasons ───────────────────────────────────────────────────────────────────
+const SEASON_LENGTH = 1200; // ticks per season
+const SEASONS = [
+  { name: 'SPRING', emoji: '🌱', color: '#00f5c4', foodMult: 2.2,  metaMult: 0.85, barColor: '#00f5c4' },
+  { name: 'SUMMER', emoji: '☀️', color: '#ffd166', foodMult: 1.0,  metaMult: 1.0,  barColor: '#ffd166' },
+  { name: 'AUTUMN', emoji: '🍂', color: '#ff9a3c', foodMult: 0.55, metaMult: 1.15, barColor: '#ff9a3c' },
+  { name: 'WINTER', emoji: '❄️', color: '#a0b4f0', foodMult: 0.2,  metaMult: 1.45, barColor: '#a0b4f0' },
+];
+let currentSeasonIdx = 0;
+let seasonTick = 0; // ticks elapsed in current season
+
+function getCurrentSeason() { return SEASONS[currentSeasonIdx]; }
+
+// ── Weather events ─────────────────────────────────────────────────────────────
+const WEATHER_EVENTS = [
+  { name: 'DROUGHT',        emoji: '🔥', color: '#ff6b35', foodMult: 0.15, metaMult: 1.1,  duration: 700,  desc: 'Food growth halted. All creatures burn more energy.' },
+  { name: 'PLAGUE WIND',    emoji: '💨', color: '#c084fc', foodMult: 1.0,  metaMult: 1.5,  duration: 600,  desc: 'A toxic wind raises metabolism across the ecosystem.' },
+  { name: 'FEEDING FRENZY', emoji: '⚡', color: '#00f5c4', foodMult: 2.8,  metaMult: 0.9,  duration: 450,  desc: 'Food explodes. Populations surge — then crash.' },
+  { name: 'BLIZZARD',       emoji: '🌨️', color: '#7dd3fc', foodMult: 0.05, metaMult: 1.6,  duration: 600,  desc: 'Near-zero food. Metabolism spikes. Only the fat survive.' },
+];
+let activeWeather = null;    // { event, ticksLeft }
+let weatherCooldown = 800;   // ticks until next possible event
+
 // ── DNA ───────────────────────────────────────────────────────────────────────
 function randomDNA(type) {
   return {
@@ -690,6 +760,9 @@ function resetSim() {
   history.h = []; history.c = []; history.o = []; history.f = [];
   selectedCreature = null;
   speciesRegistry = {}; nextShapeIdx = 0;
+  currentSeasonIdx = 0; seasonTick = 0;
+  activeWeather = null; weatherCooldown = 800;
+  selectedSpeciesId = null;
   for (let i = 0; i < 40; i++) creatures.push(createCreature('herbivore'));
   for (let i = 0; i < 10; i++) creatures.push(createCreature('carnivore'));
   for (let i = 0; i < 15; i++) creatures.push(createCreature('omnivore'));
@@ -799,7 +872,8 @@ function updateCreature(c) {
   // Normal metabolism; slow down in the last 20% to give the boom-bust cycle
   // more time to stabilise rather than crash
   const baseDrain = c.dna.metabolism + c.dna.speed * 0.003 + c.dna.size * 0.002;
-  const drainMult = c.energy < 60 ? 0.45 : 1.0; // 55% slower when starving
+  const seasonMult = window._seasonMetaMult || 1.0;
+  const drainMult = (c.energy < 60 ? 0.45 : 1.0) * seasonMult; // 55% slower when starving
   c.energy -= baseDrain * drainMult;
 
   if (c.energy <= 0 || c.age > 4000) {
@@ -1055,15 +1129,15 @@ function updateCreature(c) {
 
   } else {
     // ── CARNIVORE BEHAVIOUR ────────────────────────────────────────────────────
-    const CONE_RANGE  = c.dna.sense * 1.8;
+    const CONE_RANGE  = c.dna.sense * 2.8;
     const CONE_ARC    = Math.PI / 3;
 
     c.sprinting = false;
     const lists = window._simLists || {};
 
-    // Avoid safe omnivores — keep distance unless sleeping, mating, or <10% energy
+    // Avoid safe omnivores — keep distance unless sleeping, mating, or <20% energy
     const safeOmni = gridNearest(c.x, c.y, sgCreatures, c.dna.sense * 0.7,
-      o => o !== c && o.dna.type === 'omnivore' && !o.sleeping && !o.matingWith && o.energy >= 30);
+      o => o !== c && o.dna.type === 'omnivore' && !o.sleeping && !o.matingWith && o.energy >= 60);
     if (safeOmni) {
       const dx = c.x - safeOmni.x, dy = c.y - safeOmni.y;
       const d = Math.sqrt(dx*dx+dy*dy)+0.001;
@@ -1390,10 +1464,63 @@ function updateCreature(c) {
 function updateSim() {
   tick++;
 
+  // ── Seasons ──────────────────────────────────────────────────────────────────
+  seasonTick++;
+  if (seasonTick >= SEASON_LENGTH) {
+    seasonTick = 0;
+    currentSeasonIdx = (currentSeasonIdx + 1) % 4;
+    const ns = SEASONS[currentSeasonIdx];
+    const seasonDescs = {
+      SPRING: 'Food blooms. Population surges incoming.',
+      SUMMER: 'Balanced conditions. The ecosystem breathes.',
+      AUTUMN: 'Food slows. Prepare for harder times.',
+      WINTER: 'Scarce food. High drain. Only the strong endure.',
+    };
+    showWeatherBanner(ns.emoji + ' ' + ns.name, ns.color, 180, seasonDescs[ns.name]);
+  }
+
+  // ── Weather events ─────────────────────────────────────────────────────────
+  if (activeWeather) {
+    activeWeather.ticksLeft--;
+    if (activeWeather.ticksLeft <= 0) {
+      const endedName = activeWeather.event.name;
+      activeWeather = null;
+      weatherCooldown = 600 + Math.floor(Math.random() * 800);
+      showWeatherBanner('EVENT ENDED', '#8899bb', 80, endedName + ' HAS PASSED');
+    }
+  } else {
+    if (weatherCooldown > 0) { weatherCooldown--; }
+    else {
+      // Only trigger certain events in matching seasons
+      const ev = WEATHER_EVENTS[Math.floor(Math.random() * WEATHER_EVENTS.length)];
+      // Blizzard only in winter/autumn, drought only in summer/autumn
+      const s = SEASONS[currentSeasonIdx].name;
+      const valid = (ev.name === 'BLIZZARD' && (s === 'WINTER' || s === 'AUTUMN'))
+                 || (ev.name === 'DROUGHT'  && (s === 'SUMMER' || s === 'AUTUMN'))
+                 || (ev.name === 'FEEDING FRENZY' && (s === 'SPRING' || s === 'SUMMER'))
+                 || (ev.name === 'PLAGUE WIND');
+      if (valid) {
+        activeWeather = { event: ev, ticksLeft: ev.duration };
+        showWeatherBanner(ev.emoji + ' ' + ev.name, ev.color, ev.duration, ev.desc);
+      } else {
+        weatherCooldown = 200; // retry soon
+      }
+    }
+  }
+
+  // Effective multipliers = season * weather (if active)
+  const season = getCurrentSeason();
+  const weatherFoodMult = activeWeather ? activeWeather.event.foodMult : 1.0;
+  const weatherMetaMult = activeWeather ? activeWeather.event.metaMult : 1.0;
+  const effectiveFoodMult = season.foodMult * weatherFoodMult;
+  const effectiveMetaMult = season.metaMult * weatherMetaMult;
+  // Store on window so creature update can access
+  window._seasonMetaMult = effectiveMetaMult;
+
   // Food grows by spreading from existing food — no random teleport spawning
   if (foods.length < params.maxFood && foods.length > 0) {
     // Each tick, each food pellet has a small chance to sprout a neighbour nearby
-    const growthChance = params.foodRate * 0.0003; // slider controls spread speed
+    const growthChance = params.foodRate * 0.0003 * effectiveFoodMult; // slider controls spread speed
     for (let i = 0; i < foods.length && foods.length < params.maxFood; i++) {
       if (Math.random() < growthChance) {
         const parent = foods[i];
@@ -1416,7 +1543,7 @@ function updateSim() {
     s.age++;
     if (foods.length < params.maxFood) {
       // Use the same growth chance as normal food spread, but slightly boosted
-      const seedChance = params.foodRate * 0.0005;
+      const seedChance = params.foodRate * 0.0005 * effectiveFoodMult;
       if (Math.random() < seedChance) {
         const angle = Math.random() * Math.PI * 2;
         const r = 8 + Math.random() * 60;
@@ -1765,13 +1892,50 @@ function drawCreature(c) {
   if (alive) {
     const bw = r * 2.5, bh = 2;
     const bx = c.x - bw/2, by = c.y + r + 3;
-    const pct = Math.min(1, c.energy / 200);
+    const pct = Math.min(1, c.energy / 300);
     ctx.fillStyle = 'rgba(0,0,0,0.4)';
     ctx.fillRect(bx, by, bw, bh);
     ctx.fillStyle = isMating ? '#a29bfe'
                   : pct > 0.5 ? '#00f5c4'
                   : pct > 0.25 ? '#ffd166' : '#ff4d6d';
     ctx.fillRect(bx, by, bw * pct, bh);
+  }
+
+  // Status icons — floating above creature
+  if (alive) {
+    const iconY = c.y - r - 10;
+    ctx.shadowBlur = 0;
+    ctx.font = `${Math.max(8, r * 0.9)}px monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    const ePct = c.energy / 300;
+    if (ePct < 0.20 && !c.sleeping && !isMating) {
+      // Skull warning for critically low energy
+      const pulse2 = 0.5 + 0.5 * Math.sin(tick * 0.2);
+      ctx.globalAlpha = alpha * (0.7 + pulse2 * 0.3);
+      ctx.fillStyle = '#ff4d6d';
+      ctx.fillText('💀', c.x, iconY);
+    } else if (c.sprinting) {
+      ctx.globalAlpha = alpha * 0.9;
+      ctx.fillStyle = '#ffa032';
+      ctx.fillText('⚡', c.x, iconY);
+    } else if (c.status === 'SEEKING MATE' || c.status === 'SATED — WANDERING') {
+      ctx.globalAlpha = alpha * 0.75;
+      ctx.fillText('❤️', c.x, iconY);
+    }
+  }
+
+  // Selected species highlight ring
+  if (alive && selectedSpeciesId && c.speciesId === selectedSpeciesId) {
+    const pulse3 = 0.5 + 0.5 * Math.sin(tick * 0.15);
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, r + 6 + pulse3 * 4, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(255,209,102,${0.55 + pulse3 * 0.35})`;
+    ctx.lineWidth = 2;
+    ctx.shadowColor = 'rgba(255,209,102,0.8)';
+    ctx.shadowBlur = 8;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
   }
 
   ctx.restore();
@@ -1853,6 +2017,12 @@ function drawChart() {
   chartCtx.clearRect(0, 0, w, h);
   chartCtx.fillStyle = '#060810';
   chartCtx.fillRect(0, 0, w, h);
+
+  // Season background tint
+  const s = getCurrentSeason();
+  chartCtx.fillStyle = s.barColor + '0a'; // 4% opacity tint
+  chartCtx.fillRect(0, 0, w, h);
+
   const all = [...history.h, ...history.c, ...history.o, ...history.f];
   const maxVal = Math.max(...all, 1);
   if (history.h.length < 2) return;
@@ -1879,6 +2049,28 @@ function render() {
   ctx.clearRect(0, 0, W, H);
   ctx.fillStyle = 'rgba(6,8,16,0.85)';
   ctx.fillRect(0, 0, W, H);
+
+  // Seasonal ambient overlay
+  const seasonTints = {
+    SPRING: 'rgba(0,245,196,0.025)',
+    SUMMER: 'rgba(255,209,102,0.02)',
+    AUTUMN: 'rgba(255,120,50,0.03)',
+    WINTER: 'rgba(100,140,255,0.04)',
+  };
+  const st = seasonTints[getCurrentSeason().name];
+  if (st) { ctx.fillStyle = st; ctx.fillRect(0, 0, W, H); }
+
+  // Active weather overlay
+  if (activeWeather) {
+    const wTints = {
+      'DROUGHT':        'rgba(255,100,30,0.04)',
+      'PLAGUE WIND':    'rgba(180,80,240,0.03)',
+      'FEEDING FRENZY': 'rgba(0,245,196,0.05)',
+      'BLIZZARD':       'rgba(150,200,255,0.06)',
+    };
+    const wt = wTints[activeWeather.event.name];
+    if (wt) { ctx.fillStyle = wt; ctx.fillRect(0, 0, W, H); }
+  }
 
   // Pheromone render — update offscreen canvas when dirty, then blit in one drawImage call
   if (pheroHerb && pheroCarn && params.showPhero) {
@@ -1948,6 +2140,8 @@ function updateUI() {
     .join('|');
   const grid = document.getElementById('speciesGrid');
   if (grid && newFingerprint !== grid.dataset.fp) {
+    // If selected species went extinct, clear it
+    if (selectedSpeciesId && !(selectedSpeciesId in spCounts)) selectedSpeciesId = null;
     grid.dataset.fp = newFingerprint;
     grid.innerHTML = '';
     for (const sp of speciesEntries) {
@@ -1955,10 +2149,10 @@ function updateUI() {
       if (cnt === 0) continue;
       const cell = document.createElement('div');
       cell.className = 'species-cell';
-      cell.title = `Click to spawn ${sp.type} (${sp.id.slice(3,8)}) — qty set by spawn selector`;
+      cell.title = `Click to highlight species | Shift+click to spawn (${sp.type}, ${sp.id.slice(3,8)})`;
       // Use data attribute + global handler — avoids closure/DOM timing issues
       cell.dataset.sid = sp.id;
-      cell.addEventListener('click', function() { spawnFromSpecies(this.dataset.sid); });
+      // No per-cell listener — handled by delegation on #speciesGrid
       // Mini canvas icon
       const mc = document.createElement('canvas');
       mc.width = 24; mc.height = 24;
@@ -1975,10 +2169,30 @@ function updateUI() {
       const lbl = document.createElement('div');
       lbl.textContent = cnt;
       cell.appendChild(lbl);
+      // Re-apply highlight if this was the selected species
+      if (selectedSpeciesId === sp.id) cell.classList.add('selected-species');
       grid.appendChild(cell);
     }
   }
   document.getElementById('tickNum').textContent = tick;
+
+  // Season display
+  const seasonEl = document.getElementById('seasonDisplay');
+  if (seasonEl) {
+    const s = getCurrentSeason();
+    seasonEl.textContent = s.emoji + ' ' + s.name;
+    seasonEl.style.color = s.color;
+    seasonEl.style.fontSize = '10px';
+    seasonEl.style.letterSpacing = '1px';
+  }
+  // Season bar
+  const barFill = document.getElementById('seasonBarFill');
+  if (barFill) {
+    const pct = (seasonTick / SEASON_LENGTH) * 100;
+    barFill.style.width = pct + '%';
+    barFill.style.background = getCurrentSeason().barColor;
+    barFill.style.boxShadow = `0 0 6px ${getCurrentSeason().barColor}88`;
+  }
 
   if (selectedCreature) {
     const c = selectedCreature, d = c.dna;
@@ -2049,7 +2263,17 @@ function loop() {
     frames = 0; lastFPSTime = now;
   }
   if (playing) {
-    for (let i = 0; i < speed; i++) updateSim();
+    if (speed >= 1) {
+      const iters = Math.round(speed);
+      for (let i = 0; i < iters; i++) updateSim();
+    } else {
+      // Slow motion: accumulate fractional ticks
+      speedFraction += speed;
+      if (speedFraction >= 1) {
+        speedFraction -= 1;
+        updateSim();
+      }
+    }
   }
   updateUI(); // Always refresh panel so selected creature info stays live
   render();
@@ -2058,16 +2282,39 @@ function loop() {
 }
 
 // ── Controls ──────────────────────────────────────────────────────────────────
+// ── Speed levels (0=0.25x, 1=0.5x, 2=1x, 3=2x, ... 13=12x) ─────────────────
+const SPEED_LEVELS = [0.25, 0.5, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+let speedFraction = 0; // sub-tick accumulator for slow-motion
+
+function updateSpeed(el) {
+  const idx = parseInt(el.value);
+  speed = SPEED_LEVELS[idx] || 1;
+  const lbl = speed < 1 ? speed + '×' : Math.round(speed) + '×';
+  document.getElementById('speedVal').textContent = lbl;
+}
+
+// ── Weather banner ─────────────────────────────────────────────────────────────
+let bannerTimeout = null;
+function showWeatherBanner(text, color, durationTicks, subtitle) {
+  const el = document.getElementById('weatherBanner');
+  const titleEl = document.getElementById('weatherBannerTitle');
+  const subEl = document.getElementById('weatherBannerSub');
+  if (!el) return;
+  if (titleEl) titleEl.textContent = text;
+  if (subEl) subEl.textContent = subtitle || '';
+  el.style.borderColor = color;
+  el.style.color = color;
+  el.style.textShadow = `0 0 12px ${color}88`;
+  el.classList.add('visible');
+  if (bannerTimeout) clearTimeout(bannerTimeout);
+  bannerTimeout = setTimeout(() => { el.classList.remove('visible'); }, 4500);
+}
+
 function togglePlay() {
   playing = !playing;
   const btn = document.getElementById('playBtn');
   btn.textContent = playing ? '⏸ PAUSE' : '▶ PLAY';
   btn.classList.toggle('active', playing);
-}
-
-function updateSpeed(el) {
-  speed = parseInt(el.value);
-  document.getElementById('speedVal').textContent = speed;
 }
 
 function updateParam(key, el) {
@@ -2106,6 +2353,25 @@ window.addEventListener('resize', resize);
 resize();
 resetSim();
 loop();
+
+// ── Species grid event delegation ─────────────────────────────────────────────
+// Using delegation on the parent so clicks always register even after innerHTML rebuild
+document.getElementById('speciesGrid').addEventListener('click', function(e) {
+  const cell = e.target.closest('.species-cell');
+  if (!cell) return;
+  const sid = cell.dataset.sid;
+  if (!sid) return;
+  if (e.shiftKey) { spawnFromSpecies(sid); return; }
+  if (selectedSpeciesId === sid) {
+    selectedSpeciesId = null;
+  } else {
+    selectedSpeciesId = sid;
+  }
+  // Visual highlight update
+  document.querySelectorAll('.species-cell').forEach(c2 => {
+    c2.classList.toggle('selected-species', c2.dataset.sid === selectedSpeciesId);
+  });
+});
 
 function toggleLegend() {
   const body = document.getElementById('legendBody');
