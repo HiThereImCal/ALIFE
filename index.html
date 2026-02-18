@@ -179,7 +179,7 @@
   <div class="header-stats">
     <div class="stat"><div class="stat-val" id="hPop">0</div><div class="stat-lbl">Herbivores</div></div>
     <div class="stat"><div class="stat-val" id="cPop" style="color:var(--accent2)">0</div><div class="stat-lbl">Carnivores</div></div>
-    <div class="stat"><div class="stat-val" id="oPop" style="color:#00dce0">0</div><div class="stat-lbl">Omnivores</div></div>
+    <div class="stat"><div class="stat-val" id="oPop" style="color:#2bbcff">0</div><div class="stat-lbl">Omnivores</div></div>
     <div class="stat"><div class="stat-val" id="fPop" style="color:var(--accent3)">0</div><div class="stat-lbl">Food</div></div>
     <div class="stat"><div class="stat-val" id="genNum" style="color:#a29bfe">0</div><div class="stat-lbl">Generation</div></div>
     <div class="stat"><div class="stat-val" id="tickNum">0</div><div class="stat-lbl">Tick</div></div>
@@ -245,7 +245,7 @@
       <div class="section-title">Legend</div>
       <div class="legend">
         <div class="legend-item"><div class="legend-dot" style="background:var(--accent)"></div>HERBIVORE — eats food</div>
-        <div class="legend-item"><div class="legend-dot" style="background:#00dce0"></div>OMNIVORE — food + corpses</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#2bbcff"></div>OMNIVORE — food + corpses</div>
         <div class="legend-item"><div class="legend-dot" style="background:var(--accent2)"></div>CARNIVORE — hunts prey</div>
         <div class="legend-item"><div class="legend-dot" style="background:var(--accent3)"></div>FOOD — energy pellets</div>
         <div class="legend-item"><div class="legend-dot" style="background:#a29bfe"></div>MATING — purple, vulnerable!</div>
@@ -684,10 +684,6 @@ function updateCreature(c) {
 
   } else if (c.dna.type === 'omnivore') {
     // ── OMNIVORE BEHAVIOUR ──────────────────────────────────────────────────
-    // Dual vision: cone (forward, long) + circle (close, omnidirectional)
-    const CONE_RANGE  = c.dna.sense * 1.8;
-    const CONE_ARC    = Math.PI / 3;
-
     c.sprinting = false;
     c.status = 'FORAGING';
 
@@ -1111,9 +1107,9 @@ function drawCreature(c) {
 
   // Base hue per type: mating=267(purple), herbivore=168(teal), carnivore=348(red)
   const isSleepingDraw = alive && c.sleeping;
-  const hue = isMating ? 267 : isSleepingDraw ? 220 : (isH ? 168 : isO ? 185 : 348);
+  const hue = isMating ? 267 : isSleepingDraw ? 220 : (isH ? 168 : isO ? 205 : 348);
   // glowRGB per type for rgba() calls
-  const typeGlowRGB = isH ? '0,245,196' : isO ? '0,220,180' : '255,77,109';
+  const typeGlowRGB = isH ? '0,245,196' : isO ? '0,170,180' : '255,77,109';
   const baseColor  = alive ? `hsl(${hue},${sat}%,${lit}%)` : '#2a2a3a';
   const glowColor  = alive ? `hsl(${hue},${sat}%,${lit}%)` : '#444';
   // Extract approximate RGB for rgba() glow uses
@@ -1123,13 +1119,27 @@ function drawCreature(c) {
   ctx.save();
   ctx.globalAlpha = alpha;
 
-  // Trail
+  // Trail (break on wrap)
   if (alive && c.trail.length > 1) {
-    ctx.beginPath();
-    ctx.moveTo(c.trail[0].x, c.trail[0].y);
-    for (let i = 1; i < c.trail.length; i++) ctx.lineTo(c.trail[i].x, c.trail[i].y);
     ctx.strokeStyle = trailColor;
     ctx.lineWidth = 1;
+
+    ctx.beginPath();
+    ctx.moveTo(c.trail[0].x, c.trail[0].y);
+
+    for (let i = 1; i < c.trail.length; i++) {
+      const a = c.trail[i - 1];
+      const b = c.trail[i];
+
+      // If the segment "teleports" across the canvas, don't connect it
+      if (Math.abs(b.x - a.x) > canvas.width / 2 || Math.abs(b.y - a.y) > canvas.height / 2) {
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(b.x, b.y);
+      } else {
+        ctx.lineTo(b.x, b.y);
+      }
+    }
     ctx.stroke();
   }
 
@@ -1158,7 +1168,7 @@ function drawCreature(c) {
       ctx.closePath();
       ctx.strokeStyle = `rgba(${glowRGB},0.12)`; ctx.fillStyle = `rgba(${glowRGB},0.04)`;
       ctx.lineWidth = 1; ctx.fill(); ctx.stroke();
-      ctx.beginPath(); ctx.arc(c.x, c.y, c.dna.sense * 0.6, 0, Math.PI * 2);
+      ctx.beginPath(); ctx.arc(c.x, c.y, c.dna.sense * 1.2, 0, Math.PI * 2);
       ctx.strokeStyle = `rgba(${glowRGB},0.08)`; ctx.setLineDash([2,6]); ctx.stroke();
     } else {
       // Carnivore: cone only
@@ -1218,10 +1228,11 @@ function drawCreature(c) {
     ctx.stroke();
   }
 
-  // Outer glow
+  // Outer glow  ✅ (dimmed for sated omnivores so the big cyan disc isn't blinding)
   if (alive) {
+    const glowA = (isO && c.energy >= 270) ? 0.12 : 0.3; // <-- tweak 0.12–0.18 if you want even dimmer
     const g = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, r * 3);
-    g.addColorStop(0, `rgba(${glowRGB},0.3)`);
+    g.addColorStop(0, `rgba(${glowRGB},${glowA})`);
     g.addColorStop(1, `rgba(${glowRGB},0)`);
     ctx.beginPath();
     ctx.arc(c.x, c.y, r * 3, 0, Math.PI * 2);
@@ -1242,18 +1253,6 @@ function drawCreature(c) {
   } else if (isO) {
     // Circle (omnivore)
     ctx.arc(c.x, c.y, r, 0, Math.PI * 2);
-    // Shepherd ring if sated
-    if (alive && c.energy >= 270) {
-      ctx.save();
-      ctx.beginPath();
-      ctx.arc(c.x, c.y, r * 3.5 + Math.sin(tick * 0.05) * 2, 0, Math.PI * 2);
-      ctx.strokeStyle = `rgba(0,220,180,${0.12 + 0.08 * Math.sin(tick*0.05)})`;
-      ctx.lineWidth = 1;
-      ctx.setLineDash([4,6]);
-      ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.restore();
-    }
   } else {
     // Diamond (carnivore)
     ctx.moveTo(c.x,     c.y - r * 1.3);
@@ -1277,15 +1276,47 @@ function drawCreature(c) {
     ctx.stroke();
   }
 
+  // Shepherding indicator ring ✅ (omnivore, sated) — drawn AFTER body so it’s separate from icon
+  if (alive && isO && c.energy >= 270) {
+    ctx.save();
+    ctx.shadowBlur = 0;
+    ctx.shadowColor = 'transparent';
+
+    // Main transparency knob for the ring (independent of the icon)
+    ctx.globalAlpha = alpha * 0.18; // try 0.10–0.25
+
+    const rr = r * 7.0 + Math.sin(tick * 0.05) * 2;
+    ctx.setLineDash([5, 8]);
+    ctx.lineCap = 'round';
+
+    // Dark under-stroke to visually separate it from glow/background
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, rr, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(0,0,0,0.75)';
+    ctx.lineWidth = 2.6;
+    ctx.stroke();
+
+    // Cyan ring on top
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, rr, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(0,220,255,1)';
+    ctx.lineWidth = 1.1;
+    ctx.stroke();
+
+    ctx.setLineDash([]);
+    ctx.restore();
+  }
+
   // Direction nub + sprint streak
   if (alive) {
     const angle = Math.atan2(c.vy, c.vx);
     if (c.sprinting) {
-      // Orange motion streak behind the carnivore
+      // Orange motion streak behind the carnivore/omnivore
       ctx.beginPath();
       ctx.moveTo(c.x, c.y);
       ctx.lineTo(c.x - Math.cos(angle) * r * 4, c.y - Math.sin(angle) * r * 4);
-      ctx.strokeStyle = `rgba(255,160,50,${0.3 + c.staminaCur * 0.4})`;
+      const st = c.dna.stamina ?? 1.0;
+      ctx.strokeStyle = `rgba(255,160,50,${0.3 + st * 0.4})`;
       ctx.lineWidth = 2;
       ctx.stroke();
     }
@@ -1368,7 +1399,7 @@ function drawChart() {
   };
   line(history.h, '#00f5c4');
   line(history.c, '#ff4d6d');
-  line(history.o, '#00dce0');
+  line(history.o, '#2bbcff');
   line(history.f, '#ffd166');
 }
 
