@@ -104,7 +104,8 @@
   }
   .panel::-webkit-scrollbar { width: 3px; }
   .panel::-webkit-scrollbar-track { background: transparent; }
-  .panel::-webkit-scrollbar-thumb { background: var(--border); }
+  .panel::-webkit-scrollbar-thumb { background: rgba(0,245,196,0.2); border-radius: 2px; }
+  .panel::-webkit-scrollbar-thumb:hover { background: rgba(0,245,196,0.45); }
 
   .section { border-bottom: 1px solid var(--border); padding: 12px; }
 
@@ -210,19 +211,21 @@
   /* Weather/Season banner */
   #weatherBanner {
     position: fixed; top: 56px; left: 50%; transform: translateX(-50%);
-    background: rgba(10,14,26,0.92); border: 1px solid var(--accent3);
+    background: rgba(6,8,16,0.82);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--accent3);
     color: var(--accent3); font-family: 'Share Tech Mono', monospace;
     font-size: 11px; letter-spacing: 3px; text-transform: uppercase;
-    padding: 8px 24px 7px; pointer-events: none; z-index: 100;
-    opacity: 0; transition: opacity 0.5s;
-    text-shadow: 0 0 12px rgba(255,209,102,0.6);
-    box-shadow: 0 0 20px rgba(255,209,102,0.15);
-    text-align: center; min-width: 240px;
+    padding: 9px 28px 8px; pointer-events: none; z-index: 100;
+    opacity: 0; transition: opacity 0.6s;
+    text-shadow: 0 0 14px rgba(255,209,102,0.5);
+    box-shadow: 0 0 30px rgba(255,209,102,0.1), inset 0 1px 0 rgba(255,255,255,0.04);
+    text-align: center; min-width: 260px;
   }
   #weatherBanner.visible { opacity: 1; }
   #weatherBannerSub {
-    font-size: 8px; letter-spacing: 2px; opacity: 0.65;
-    margin-top: 3px; text-transform: uppercase;
+    font-size: 8px; letter-spacing: 2px; opacity: 0.6;
+    margin-top: 4px; text-transform: uppercase;
   }
 
   /* Season progress bar under header */
@@ -243,6 +246,19 @@
     box-shadow: 0 0 8px rgba(255,209,102,0.3);
   }
 
+  /* Species +/− buttons — proper classes instead of inline styles */
+  .sp-btn-row { display:flex; gap:2px; margin-top:3px; width:100%; }
+  .sp-btn {
+    flex: 1; font-size: 9px; padding: 2px 0;
+    border: 1px solid var(--border); background: transparent;
+    cursor: pointer; font-family: 'Share Tech Mono', monospace;
+    transition: all 0.12s; line-height: 1;
+  }
+  .sp-btn.minus { color: rgba(255,77,109,0.65); border-color: rgba(255,77,109,0.25); }
+  .sp-btn.minus:hover { color: var(--accent2); border-color: rgba(255,77,109,0.6); background: rgba(255,77,109,0.08); }
+  .sp-btn.plus  { color: rgba(0,245,196,0.65); border-color: rgba(0,245,196,0.25); }
+  .sp-btn.plus:hover  { color: var(--accent); border-color: rgba(0,245,196,0.6); background: rgba(0,245,196,0.08); }
+
   /* ── Deus Ex Machina panel ───────────────────────────────────────────────── */
   .deus-section {
     border-bottom: 1px solid var(--border);
@@ -257,9 +273,18 @@
     text-shadow: 0 0 10px rgba(255,77,109,0.4);
   }
   .deus-subtitle {
-    font-size: 8px; letter-spacing: 2px; color: var(--text);
-    opacity: 0.6; margin-bottom: 6px; margin-top: 8px;
+    display: flex; align-items: center; gap: 6px;
+    font-size: 7px; letter-spacing: 2px; color: var(--text);
+    opacity: 0.45; margin-bottom: 7px; margin-top: 10px;
     text-transform: uppercase;
+  }
+  .deus-subtitle::before,
+  .deus-subtitle::after {
+    content: ''; flex: 1; height: 1px;
+    background: linear-gradient(to right, transparent, var(--border));
+  }
+  .deus-subtitle::after {
+    background: linear-gradient(to left, transparent, var(--border));
   }
   .btn.deus {
     border-color: rgba(255,77,109,0.3);
@@ -354,50 +379,65 @@
   <canvas id="canvas"></canvas>
   <div class="panel">
     <div class="section">
-      <div class="section-title">Simulation</div>
-      <button class="btn active" id="playBtn" onclick="togglePlay()">⏸ PAUSE</button>
-      <button class="btn danger" onclick="resetSim()">↺ RESET</button>
-      <div class="control-row">
-        <div class="control-label">SPEED</div>
-        <input type="range" id="speedSlider" min="0" max="13" value="2" oninput="updateSpeed(this)">
-        <div class="val-display" id="speedVal">1×</div>
+      <div class="section-title-row">
+        <div class="section-title" style="margin-bottom:0">Simulation</div>
+        <button class="collapse-btn" onclick="toggleSection('simBody',this)" title="Toggle">▼</button>
+      </div>
+      <div id="simBody">
+        <button class="btn active" id="playBtn" onclick="togglePlay()">⏸ PAUSE</button>
+        <button class="btn danger" onclick="resetSim()">↺ RESET</button>
+        <div class="control-row">
+          <div class="control-label">SPEED</div>
+          <input type="range" id="speedSlider" min="0" max="13" value="2" oninput="updateSpeed(this)">
+          <div class="val-display" id="speedVal">1×</div>
+        </div>
       </div>
     </div>
     <div class="section">
-      <div class="section-title">Environment</div>
-      <div class="control-row">
-        <div class="control-label">FOOD SPREAD</div>
-        <input type="range" id="foodRate" min="1" max="50" value="8" oninput="updateParam('foodRate', this)">
-        <div class="val-display" id="foodRateVal">8</div>
+      <div class="section-title-row">
+        <div class="section-title" style="margin-bottom:0">Environment</div>
+        <button class="collapse-btn" onclick="toggleSection('envBody',this)" title="Toggle">▼</button>
       </div>
-      <div class="control-row">
-        <div class="control-label">MAX FOOD</div>
-        <input type="range" id="maxFood" min="20" max="1000" value="120" oninput="updateParam('maxFood', this)">
-        <div class="val-display" id="maxFoodVal">120</div>
+      <div id="envBody">
+        <div class="control-row">
+          <div class="control-label">FOOD SPREAD</div>
+          <input type="range" id="foodRate" min="1" max="50" value="8" oninput="updateParam('foodRate', this)">
+          <div class="val-display" id="foodRateVal">8</div>
+        </div>
+        <div class="control-row">
+          <div class="control-label">MAX FOOD</div>
+          <input type="range" id="maxFood" min="20" max="1000" value="120" oninput="updateParam('maxFood', this)">
+          <div class="val-display" id="maxFoodVal">120</div>
+        </div>
+        <div class="control-row">
+          <div class="control-label">MUTATION</div>
+          <input type="range" id="mutRate" min="0" max="50" value="10" oninput="updateParam('mutRate', this)">
+          <div class="val-display" id="mutRateVal">10%</div>
+        </div>
+        <div class="control-row">
+          <div class="control-label">FLOCK STR</div>
+          <input type="range" id="flockStr" min="0" max="20" value="10" oninput="updateParam('flockStr', this)">
+          <div class="val-display" id="flockStrVal">10</div>
+        </div>
+        <button class="btn" id="pheroBtn" onclick="togglePhero()" style="margin-top:2px;">◎ SHOW SCENT TRAILS</button>
       </div>
-      <div class="control-row">
-        <div class="control-label">MUTATION</div>
-        <input type="range" id="mutRate" min="0" max="50" value="10" oninput="updateParam('mutRate', this)">
-        <div class="val-display" id="mutRateVal">10%</div>
-      </div>
-      <div class="control-row">
-        <div class="control-label">FLOCK STR</div>
-        <input type="range" id="flockStr" min="0" max="20" value="10" oninput="updateParam('flockStr', this)">
-        <div class="val-display" id="flockStrVal">10</div>
-      </div>
-      <button class="btn" id="pheroBtn" onclick="togglePhero()" style="margin-top:2px;">◎ SHOW SCENT TRAILS</button>
     </div>
     <div class="section">
-      <div class="section-title">Spawn</div>
-      <button class="btn" id="spawnH" onclick="spawnCreatures('herbivore', spawnAmt())">+ <span id="spawnHlbl">1</span> HERBIVORE<span id="spawnHs"></span></button>
-      <button class="btn" id="spawnC" onclick="spawnCreatures('carnivore', spawnAmt())">+ <span id="spawnClbl">1</span> CARNIVORE<span id="spawnCs"></span></button>
-      <button class="btn" id="spawnO" onclick="spawnCreatures('omnivore', spawnAmt())">+ <span id="spawnOlbl">1</span> OMNIVORE<span id="spawnOs"></span></button>
-      <button class="btn" id="spawnS" onclick="spawnSeed(spawnAmt())">+ <span id="spawnSlbl">1</span> SEED<span id="spawnSs"></span></button>
-      <button class="btn" id="spawnF" onclick="spawnFood(spawnAmt())">+ <span id="spawnFlbl">1</span> FOOD</button>
-      <div style="display:flex;gap:6px;margin-top:8px;">
-        <button class="btn qty-btn active" id="qty1" onclick="setQty(1)" style="flex:1;text-align:center;padding:6px 0;">1</button>
-        <button class="btn qty-btn" id="qty10" onclick="setQty(10)" style="flex:1;text-align:center;padding:6px 0;">10</button>
-        <button class="btn qty-btn" id="qty25" onclick="setQty(25)" style="flex:1;text-align:center;padding:6px 0;">25</button>
+      <div class="section-title-row">
+        <div class="section-title" style="margin-bottom:0">Spawn</div>
+        <button class="collapse-btn" onclick="toggleSection('spawnBody',this)" title="Toggle">▼</button>
+      </div>
+      <div id="spawnBody">
+        <button class="btn" id="spawnH" onclick="spawnCreatures('herbivore', spawnAmt())">+ <span id="spawnHlbl">1</span> HERBIVORE<span id="spawnHs"></span></button>
+        <button class="btn" id="spawnC" onclick="spawnCreatures('carnivore', spawnAmt())">+ <span id="spawnClbl">1</span> CARNIVORE<span id="spawnCs"></span></button>
+        <button class="btn" id="spawnO" onclick="spawnCreatures('omnivore', spawnAmt())">+ <span id="spawnOlbl">1</span> OMNIVORE<span id="spawnOs"></span></button>
+        <button class="btn" id="spawnS" onclick="spawnSeed(spawnAmt())">+ <span id="spawnSlbl">1</span> SEED<span id="spawnSs"></span></button>
+        <button class="btn" id="spawnF" onclick="spawnFood(spawnAmt())">+ <span id="spawnFlbl">1</span> FOOD</button>
+        <div style="display:flex;gap:6px;margin-top:8px;">
+          <button class="btn qty-btn active" id="qty1" onclick="setQty(1)" style="flex:1;text-align:center;padding:6px 0;">1</button>
+          <button class="btn qty-btn" id="qty10" onclick="setQty(10)" style="flex:1;text-align:center;padding:6px 0;">10</button>
+          <button class="btn qty-btn" id="qty25" onclick="setQty(25)" style="flex:1;text-align:center;padding:6px 0;">25</button>
+        </div>
       </div>
     </div>
     <div class="section">
@@ -423,27 +463,46 @@
       </div>
     </div>
     <div class="section">
-      <div class="section-title">Population Graph</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:5px;">
-        <div style="display:flex;align-items:center;gap:3px;font-size:8px;letter-spacing:1px;color:#00f5c4"><div style="width:8px;height:8px;background:#00f5c4;border-radius:1px;flex-shrink:0"></div>HERB</div>
-        <div style="display:flex;align-items:center;gap:3px;font-size:8px;letter-spacing:1px;color:#ff4d6d"><div style="width:8px;height:8px;background:#ff4d6d;border-radius:1px;flex-shrink:0"></div>CARN</div>
-        <div style="display:flex;align-items:center;gap:3px;font-size:8px;letter-spacing:1px;color:#2bbcff"><div style="width:8px;height:8px;background:#2bbcff;border-radius:1px;flex-shrink:0"></div>OMNI</div>
-        <div style="display:flex;align-items:center;gap:3px;font-size:8px;letter-spacing:1px;color:#ffd166"><div style="width:8px;height:8px;background:#ffd166;border-radius:1px;flex-shrink:0"></div>FOOD</div>
+      <div class="section-title-row">
+        <div class="section-title" style="margin-bottom:0">Population Graph</div>
+        <button class="collapse-btn" onclick="toggleSection('graphBody',this)" title="Toggle">▼</button>
       </div>
-      <div class="mini-chart"><canvas id="chartCanvas"></canvas></div>
+      <div id="graphBody">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:5px;">
+          <div style="display:flex;align-items:center;gap:3px;font-size:8px;letter-spacing:1px;color:#00f5c4"><div style="width:8px;height:8px;background:#00f5c4;border-radius:1px;flex-shrink:0"></div>HERB</div>
+          <div style="display:flex;align-items:center;gap:3px;font-size:8px;letter-spacing:1px;color:#ff4d6d"><div style="width:8px;height:8px;background:#ff4d6d;border-radius:1px;flex-shrink:0"></div>CARN</div>
+          <div style="display:flex;align-items:center;gap:3px;font-size:8px;letter-spacing:1px;color:#2bbcff"><div style="width:8px;height:8px;background:#2bbcff;border-radius:1px;flex-shrink:0"></div>OMNI</div>
+          <div style="display:flex;align-items:center;gap:3px;font-size:8px;letter-spacing:1px;color:#ffd166"><div style="width:8px;height:8px;background:#ffd166;border-radius:1px;flex-shrink:0"></div>FOOD</div>
+        </div>
+        <div class="mini-chart"><canvas id="chartCanvas"></canvas></div>
+      </div>
     </div>
     <div class="section">
-      <div class="section-title">Species <span id="speciesCount" style="color:var(--text);font-size:9px;letter-spacing:1px">0</span></div>
-      <div class="species-grid" id="speciesGrid"></div>
+      <div class="section-title-row">
+        <div class="section-title" style="margin-bottom:0">Species <span id="speciesCount" style="color:var(--text);font-size:9px;letter-spacing:1px">0</span></div>
+        <button class="collapse-btn" onclick="toggleSection('speciesBody',this)" title="Toggle">▼</button>
+      </div>
+      <div id="speciesBody">
+        <div class="species-grid" id="speciesGrid"></div>
+      </div>
     </div>
     <div class="section">
-      <div class="section-title">Selection Info</div>
-      <div class="info-box" id="infoBox"><b>Click a creature</b> to inspect its genes and status.</div>
+      <div class="section-title-row">
+        <div class="section-title" style="margin-bottom:0">Selection Info</div>
+        <button class="collapse-btn" onclick="toggleSection('infoBody',this)" title="Toggle">▼</button>
+      </div>
+      <div id="infoBody">
+        <div class="info-box" id="infoBox"><b>Click a creature</b> to inspect its genes and status.</div>
+      </div>
     </div>
 
     <!-- ── DEUS EX MACHINA ──────────────────────────────────────────────────── -->
     <div class="deus-section">
-      <div class="deus-title">⚡ Deus Ex Machina</div>
+      <div class="section-title-row" style="margin-bottom:10px;">
+        <div class="deus-title" style="margin-bottom:0;">⚡ Deus Ex Machina</div>
+        <button class="collapse-btn" style="color:var(--accent2);" onclick="toggleSection('deusBody',this)" title="Toggle">▼</button>
+      </div>
+      <div id="deusBody">
 
       <div class="deus-subtitle">— Seasons —</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:2px;">
@@ -483,7 +542,8 @@
       <div id="mutRows">
         <!-- Populated by JS -->
       </div>
-    </div>
+      </div><!-- end #deusBody -->
+    </div><!-- end .deus-section -->
   </div><!-- end .panel -->
 </div><!-- end .main -->
 
@@ -1915,25 +1975,25 @@ function drawCreature(c) {
   ctx.save();
   ctx.globalAlpha = alpha;
 
-  // Trail — skip when creature is near (but not quite at) the viewport edge
+  // Trail — fades from transparent at oldest point to full opacity at head
   const nearViewport = c.x > -40 && c.x < canvas.width+40 && c.y > -40 && c.y < canvas.height+40;
   if (alive && c.trail.length > 1 && nearViewport) {
-    ctx.strokeStyle = trailColor;
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(c.trail[0].x, c.trail[0].y);
-    for (let i = 1; i < c.trail.length; i++) {
+    const tLen = c.trail.length;
+    for (let i = 1; i < tLen; i++) {
       const a = c.trail[i - 1];
       const b = c.trail[i];
-      if (Math.abs(b.x - a.x) > canvas.width / 2 || Math.abs(b.y - a.y) > canvas.height / 2) {
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(b.x, b.y);
-      } else {
-        ctx.lineTo(b.x, b.y);
-      }
+      // Skip wrap-around segments (toroidal world edge crossings)
+      if (Math.abs(b.x - a.x) > canvas.width / 2 || Math.abs(b.y - a.y) > canvas.height / 2) continue;
+      const segAlpha = (i / tLen) * 0.22; // fades to near-zero at tail
+      ctx.strokeStyle = isMating
+        ? `hsla(267,${sat}%,${lit}%,${segAlpha})`
+        : `hsla(${hue},${sat}%,${lit}%,${segAlpha})`;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.stroke();
     }
-    ctx.stroke();
   }
 
   // Vision indicator (selected only)
@@ -2237,9 +2297,9 @@ function drawFood(f) {
     ctx.fillStyle = '#84cc16';
     ctx.shadowColor = '#a3e635';
     ctx.shadowBlur = 8;
-    // Small toxic drip indicator
     ctx.fill();
     ctx.shadowBlur = 0;
+    // Tiny drip indicator above
     ctx.beginPath();
     ctx.arc(f.x, f.y - 4, 1.2, 0, Math.PI * 2);
     ctx.fillStyle = 'rgba(163,230,53,0.6)';
@@ -2250,6 +2310,11 @@ function drawFood(f) {
     ctx.shadowBlur = 6;
     ctx.fill();
     ctx.shadowBlur = 0;
+    // Inner specular highlight — jewel effect
+    ctx.beginPath();
+    ctx.arc(f.x - 0.8, f.y - 0.8, 1.1, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,255,220,0.55)';
+    ctx.fill();
   }
   ctx.restore();
 }
@@ -2458,6 +2523,13 @@ function render() {
   for (const s of seeds) drawSeed(s);
   for (const f of foods) drawFood(f);
   for (const c of creatures) drawCreature(c);
+
+  // Cinematic vignette — drawn last, above everything
+  const vign = ctx.createRadialGradient(W/2, H/2, H * 0.3, W/2, H/2, H * 0.85);
+  vign.addColorStop(0, 'rgba(0,0,0,0)');
+  vign.addColorStop(1, 'rgba(0,0,0,0.38)');
+  ctx.fillStyle = vign;
+  ctx.fillRect(0, 0, W, H);
 }
 
 // ── UI ────────────────────────────────────────────────────────────────────────
@@ -2513,17 +2585,17 @@ function updateUI() {
       cell.appendChild(lbl);
       // +/- buttons row
       const btnRow = document.createElement('div');
-      btnRow.style.cssText = 'display:flex;gap:2px;margin-top:2px;width:100%;';
+      btnRow.className = 'sp-btn-row';
       const minusBtn = document.createElement('button');
       minusBtn.textContent = '−';
+      minusBtn.className = 'sp-btn minus';
       minusBtn.dataset.action = 'kill';
       minusBtn.dataset.sid = sp.id;
-      minusBtn.style.cssText = 'flex:1;font-size:9px;padding:1px 0;border:1px solid rgba(255,77,109,0.35);background:transparent;color:rgba(255,77,109,0.7);cursor:pointer;font-family:monospace;border-radius:1px;';
       const plusBtn = document.createElement('button');
       plusBtn.textContent = '+';
+      plusBtn.className = 'sp-btn plus';
       plusBtn.dataset.action = 'spawn';
       plusBtn.dataset.sid = sp.id;
-      plusBtn.style.cssText = 'flex:1;font-size:9px;padding:1px 0;border:1px solid rgba(0,245,196,0.35);background:transparent;color:rgba(0,245,196,0.7);cursor:pointer;font-family:monospace;border-radius:1px;';
       btnRow.appendChild(minusBtn);
       btnRow.appendChild(plusBtn);
       cell.appendChild(btnRow);
@@ -3002,13 +3074,20 @@ function nudgeTrait(key, delta, min, max) {
 // Build mutation rows on load
 buildMutRows();
 
-function toggleLegend() {
-  const body = document.getElementById('legendBody');
-  const btn  = document.getElementById('legendToggle');
+// ── Generic collapsible section toggle ───────────────────────────────────────
+function toggleSection(bodyId, btn) {
+  const body = document.getElementById(bodyId);
+  if (!body) return;
   const collapsed = body.style.display === 'none';
   body.style.display = collapsed ? '' : 'none';
-  btn.textContent = collapsed ? '▼' : '▶';
-  btn.classList.toggle('collapsed', !collapsed);
+  if (btn) {
+    btn.textContent = collapsed ? '▼' : '▶';
+    btn.classList.toggle('collapsed', !collapsed);
+  }
+}
+
+function toggleLegend() {
+  toggleSection('legendBody', document.getElementById('legendToggle'));
 }
 
 function togglePhero() {
