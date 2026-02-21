@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>ALIFE — Artificial Life Simulator</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Syncopate:wght@400;700&display=swap');
@@ -104,7 +104,8 @@
   }
   .panel::-webkit-scrollbar { width: 3px; }
   .panel::-webkit-scrollbar-track { background: transparent; }
-  .panel::-webkit-scrollbar-thumb { background: var(--border); }
+  .panel::-webkit-scrollbar-thumb { background: rgba(0,245,196,0.2); border-radius: 2px; }
+  .panel::-webkit-scrollbar-thumb:hover { background: rgba(0,245,196,0.45); }
 
   .section { border-bottom: 1px solid var(--border); padding: 12px; }
 
@@ -163,6 +164,42 @@
   .mini-chart canvas { width: 100%; height: 100%; }
 
   .info-box { font-size: 9px; line-height: 1.8; color: var(--text); letter-spacing: 0.5px; }
+
+  /* Collapsible legend */
+  .section-title-row {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .section-title-row .section-title { margin-bottom: 0; }
+  .collapse-btn {
+    background: none; border: none; cursor: pointer;
+    color: var(--accent); font-size: 11px; line-height: 1;
+    padding: 2px 4px; transition: transform 0.2s;
+  }
+  .collapse-btn.collapsed { transform: rotate(-90deg); }
+
+  /* Species grid */
+  .species-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 4px;
+    margin-top: 4px;
+  }
+  .species-cell {
+    display: flex; flex-direction: column; align-items: center;
+    gap: 2px; font-size: 8px; color: var(--text);
+    background: rgba(255,255,255,0.02);
+    border: 1px solid var(--border);
+    padding: 4px 2px; border-radius: 2px;
+    cursor: pointer; transition: border-color 0.15s, background 0.15s;
+    user-select: none;
+  }
+  .species-cell:hover {
+    border-color: var(--accent);
+    background: rgba(0,245,196,0.07);
+  }
+  .species-cell:active { background: rgba(0,245,196,0.14); }
+  .species-cell canvas { display: block; pointer-events: none; }
   .info-box b { color: var(--accent); font-weight: normal; }
 
   footer {
@@ -170,18 +207,274 @@
     color: var(--border); border-top: 1px solid var(--border);
     background: var(--panel); display: flex; justify-content: space-between; flex-shrink: 0;
   }
+
+  /* Weather/Season banner */
+  #weatherBanner {
+    position: fixed; top: 56px; left: 50%; transform: translateX(-50%);
+    background: rgba(6,8,16,0.82);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--accent3);
+    color: var(--accent3); font-family: 'Share Tech Mono', monospace;
+    font-size: 11px; letter-spacing: 3px; text-transform: uppercase;
+    padding: 9px 28px 8px; pointer-events: none; z-index: 100;
+    opacity: 0; transition: opacity 0.6s;
+    text-shadow: 0 0 14px rgba(255,209,102,0.5);
+    box-shadow: 0 0 30px rgba(255,209,102,0.1), inset 0 1px 0 rgba(255,255,255,0.04);
+    text-align: center; min-width: 260px;
+  }
+  #weatherBanner.visible { opacity: 1; }
+  #weatherBannerSub {
+    font-size: 8px; letter-spacing: 2px; opacity: 0.6;
+    margin-top: 4px; text-transform: uppercase;
+  }
+
+  /* Season progress bar under header */
+  #seasonBar {
+    position: fixed; top: 54px; left: 0; right: 220px;
+    height: 2px; z-index: 99; pointer-events: none;
+    background: transparent;
+  }
+  #seasonBarFill {
+    height: 100%; width: 0%;
+    transition: background 1s;
+  }
+  #dayNightBar {
+    position: fixed; top: 56px; left: 0; right: 220px;
+    height: 2px; z-index: 98; pointer-events: none;
+    background: transparent;
+  }
+  #dayNightBarFill {
+    height: 100%; width: 0%;
+    transition: background 0.5s;
+  }
+
+  /* Selected species highlight ring */
+  .species-cell.selected-species {
+    border-color: var(--accent3) !important;
+    background: rgba(255,209,102,0.12) !important;
+    box-shadow: 0 0 8px rgba(255,209,102,0.3);
+  }
+
+  /* Species +/− buttons — proper classes instead of inline styles */
+  .sp-btn-row { display:flex; gap:2px; margin-top:3px; width:100%; }
+  .sp-btn {
+    flex: 1; font-size: 9px; padding: 2px 0;
+    border: 1px solid var(--border); background: transparent;
+    cursor: pointer; font-family: 'Share Tech Mono', monospace;
+    transition: all 0.12s; line-height: 1;
+  }
+  .sp-btn.minus { color: rgba(255,77,109,0.65); border-color: rgba(255,77,109,0.25); }
+  .sp-btn.minus:hover { color: var(--accent2); border-color: rgba(255,77,109,0.6); background: rgba(255,77,109,0.08); }
+  .sp-btn.plus  { color: rgba(0,245,196,0.65); border-color: rgba(0,245,196,0.25); }
+  .sp-btn.plus:hover  { color: var(--accent); border-color: rgba(0,245,196,0.6); background: rgba(0,245,196,0.08); }
+
+  /* ── Deus Ex Machina panel ───────────────────────────────────────────────── */
+  .deus-section {
+    border-bottom: 1px solid var(--border);
+    padding: 12px;
+    background: rgba(255,77,109,0.03);
+  }
+  .deus-title {
+    font-family: 'Syncopate', sans-serif;
+    font-size: 8px; letter-spacing: 3px;
+    color: var(--accent2); margin-bottom: 10px;
+    text-transform: uppercase;
+    text-shadow: 0 0 10px rgba(255,77,109,0.4);
+  }
+  .deus-subtitle {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 7px; letter-spacing: 2px; color: var(--text);
+    opacity: 0.45; margin-bottom: 7px; margin-top: 10px;
+    text-transform: uppercase;
+  }
+  .deus-subtitle::before,
+  .deus-subtitle::after {
+    content: ''; flex: 1; height: 1px;
+    background: linear-gradient(to right, transparent, var(--border));
+  }
+  .deus-subtitle::after {
+    background: linear-gradient(to left, transparent, var(--border));
+  }
+  .btn.deus {
+    border-color: rgba(255,77,109,0.3);
+    color: rgba(255,180,180,0.85);
+  }
+  .btn.deus:hover {
+    border-color: var(--accent2); color: var(--accent2);
+    background: rgba(255,77,109,0.07);
+    box-shadow: 0 0 10px rgba(255,77,109,0.2);
+  }
+  .btn.deus.armed {
+    border-color: var(--accent2) !important;
+    color: var(--accent2) !important;
+    background: rgba(255,77,109,0.15) !important;
+    box-shadow: 0 0 14px rgba(255,77,109,0.4) !important;
+    animation: pulse-red 0.8s ease-in-out infinite alternate;
+  }
+  .btn.deus.active-event {
+    border-color: #c084fc !important;
+    color: #c084fc !important;
+    background: rgba(192,132,252,0.1) !important;
+  }
+  @keyframes pulse-red {
+    from { box-shadow: 0 0 8px rgba(255,77,109,0.3); }
+    to   { box-shadow: 0 0 20px rgba(255,77,109,0.7); }
+  }
+
+  /* Mutation nudge rows */
+  .mut-row {
+    display: flex; align-items: center; gap: 4px;
+    margin-bottom: 4px;
+  }
+  .mut-label {
+    font-size: 8px; letter-spacing: 1px; color: var(--text);
+    flex: 1; text-transform: uppercase;
+  }
+  .mut-btn {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px; width: 22px; height: 22px;
+    border: 1px solid var(--border); background: transparent;
+    color: var(--text-bright); cursor: pointer;
+    transition: all 0.12s; display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .mut-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(0,245,196,0.07); }
+  .mut-btn.minus:hover { border-color: var(--accent2); color: var(--accent2); background: rgba(255,77,109,0.07); }
+
+  /* Type selector tabs for mutations */
+  .type-tabs {
+    display: flex; gap: 4px; margin-bottom: 8px;
+  }
+  .type-tab {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 8px; letter-spacing: 1px;
+    border: 1px solid var(--border); background: transparent;
+    color: var(--text); padding: 4px 6px; cursor: pointer;
+    transition: all 0.12s; flex: 1; text-align: center;
+    text-transform: uppercase;
+  }
+  .type-tab.active { border-color: var(--accent); color: var(--accent); background: rgba(0,245,196,0.08); }
+  .type-tab.herb.active  { border-color: #00f5c4; color: #00f5c4; background: rgba(0,245,196,0.08); }
+  .type-tab.carn.active  { border-color: #ff4d6d; color: #ff4d6d; background: rgba(255,77,109,0.08); }
+  .type-tab.omni.active  { border-color: #2bbcff; color: #2bbcff; background: rgba(43,188,255,0.08); }
+
+  /* ── Mobile layout ──────────────────────────────────────────────────────────── */
+  @media (max-width: 768px) {
+
+    header { padding: 7px 12px; gap: 6px; }
+    .logo { font-size: 13px; letter-spacing: 3px; }
+    .by-cal-link { display: none; }
+    .header-stats { gap: 8px; }
+    .stat-val { font-size: 12px; }
+    .stat-lbl { font-size: 7px; letter-spacing: 1px; }
+    .stat-hide-mobile { display: none; }
+    footer { display: none; }
+
+    /* Season bar full width */
+    #seasonBar { right: 0; }
+    #dayNightBar { right: 0; }
+
+    /* Canvas fills all available space */
+    .main { position: relative; overflow: hidden; }
+
+    /* Panel becomes a fixed right drawer, hidden by default */
+    .panel {
+      position: fixed;
+      top: 0; right: 0; bottom: 0;
+      width: 260px;
+      transform: translateX(100%);
+      transition: transform 0.28s cubic-bezier(0.4,0,0.2,1);
+      z-index: 300;
+      border-left: 1px solid var(--border);
+    }
+    .panel.drawer-open {
+      transform: translateX(0);
+    }
+
+    /* Hamburger toggle button */
+    #drawerToggle {
+      position: fixed;
+      top: 50%;
+      right: 0;
+      transform: translateY(-50%);
+      z-index: 400;
+      width: 28px; height: 52px;
+      background: rgba(8,10,20,0.92);
+      backdrop-filter: blur(10px);
+      border: 1px solid var(--border);
+      border-right: none;
+      border-radius: 6px 0 0 6px;
+      cursor: pointer;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 4px;
+      transition: border-color 0.15s, right 0.28s cubic-bezier(0.4,0,0.2,1);
+      -webkit-tap-highlight-color: transparent;
+    }
+    #drawerToggle.open {
+      right: 260px;
+    }
+    #drawerToggle span {
+      display: block; width: 12px; height: 1.5px;
+      background: var(--accent); border-radius: 1px;
+      transition: all 0.2s;
+    }
+    #drawerToggle.open span:nth-child(1) { transform: rotate(45deg) translate(2px, 4px); }
+    #drawerToggle.open span:nth-child(2) { opacity: 0; }
+    #drawerToggle.open span:nth-child(3) { transform: rotate(-45deg) translate(2px, -4px); }
+
+    /* Backdrop when drawer open */
+    #drawerBackdrop {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 290;
+    }
+    #drawerBackdrop.visible { display: block; }
+
+    /* Larger tap targets inside panel */
+    .panel .btn { padding: 10px 10px; font-size: 10px; }
+    .panel input[type=range] { width: 100px; height: 4px; }
+    .panel input[type=range]::-webkit-slider-thumb { width: 18px; height: 18px; }
+
+    /* Weather banner */
+    #weatherBanner {
+      top: auto; bottom: 12px;
+      font-size: 9px; letter-spacing: 2px;
+      padding: 7px 14px 6px; min-width: 0; width: 85%;
+    }
+    #weatherBannerSub { font-size: 7px; }
+  }
+
+  /* These elements only exist for the mobile drawer */
+  #drawerToggle, #drawerBackdrop { display: none; }
+  @media (max-width: 768px) {
+    #drawerToggle { display: flex; }
+  }
 </style>
 </head>
 <body>
+
+<div id="weatherBanner"><div id="weatherBannerTitle"></div><div id="weatherBannerSub"></div></div>
+<div id="seasonBar"><div id="seasonBarFill"></div></div>
+<div id="dayNightBar"><div id="dayNightBarFill"></div></div>
+<button id="drawerToggle" onclick="toggleDrawer()" aria-label="Toggle controls">
+  <span></span><span></span><span></span>
+</button>
+<div id="drawerBackdrop" onclick="toggleDrawer()"></div>
 
 <header>
   <div class="logo">ALIFE <span>/ SIM</span></div>
   <div class="header-stats">
     <div class="stat"><div class="stat-val" id="hPop">0</div><div class="stat-lbl">Herbivores</div></div>
     <div class="stat"><div class="stat-val" id="cPop" style="color:var(--accent2)">0</div><div class="stat-lbl">Carnivores</div></div>
+    <div class="stat"><div class="stat-val" id="oPop" style="color:#2bbcff">0</div><div class="stat-lbl">Omnivores</div></div>
     <div class="stat"><div class="stat-val" id="fPop" style="color:var(--accent3)">0</div><div class="stat-lbl">Food</div></div>
-    <div class="stat"><div class="stat-val" id="genNum" style="color:#a29bfe">0</div><div class="stat-lbl">Generation</div></div>
-    <div class="stat"><div class="stat-val" id="tickNum">0</div><div class="stat-lbl">Tick</div></div>
+    <div class="stat stat-hide-mobile"><div class="stat-val" id="sPop" style="color:#2d8a30">0</div><div class="stat-lbl">Seeds</div></div>
+    <div class="stat stat-hide-mobile"><div class="stat-val" id="genNum" style="color:#a29bfe">0</div><div class="stat-lbl">Generation</div></div>
+    <div class="stat stat-hide-mobile"><div class="stat-val" id="tickNum">0</div><div class="stat-lbl">Tick</div></div>
+    <div class="stat"><div class="stat-val" id="seasonDisplay" style="color:#ffd166">🌱</div><div class="stat-lbl">Season</div></div>
+    <div class="stat stat-hide-mobile"><div class="stat-val" id="dayNightDisplay" style="color:#aaaaee">☀</div><div class="stat-lbl">Cycle</div></div>
   </div>
   <a href="https://www.linkedin.com/in/callum-smith-55118071/" target="_blank" rel="noopener" class="by-cal-link">
     <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
@@ -195,67 +488,222 @@
   <canvas id="canvas"></canvas>
   <div class="panel">
     <div class="section">
-      <div class="section-title">Simulation</div>
-      <button class="btn active" id="playBtn" onclick="togglePlay()">⏸ PAUSE</button>
-      <button class="btn danger" onclick="resetSim()">↺ RESET</button>
-      <div class="control-row">
-        <div class="control-label">SPEED</div>
-        <input type="range" id="speedSlider" min="1" max="10" value="1" oninput="updateSpeed(this)">
-        <div class="val-display" id="speedVal">1</div>
+      <div class="section-title-row">
+        <div class="section-title" style="margin-bottom:0">Simulation</div>
+        <button class="collapse-btn" onclick="toggleSection('simBody',this)" title="Toggle">▼</button>
+      </div>
+      <div id="simBody">
+        <button class="btn active" id="playBtn" onclick="togglePlay()">⏸ PAUSE</button>
+        <button class="btn danger" onclick="resetSim()">↺ RESET</button>
+        <div class="control-row">
+          <div class="control-label">SPEED</div>
+          <input type="range" id="speedSlider" min="0" max="13" value="2" oninput="updateSpeed(this)">
+          <div class="val-display" id="speedVal">1×</div>
+        </div>
       </div>
     </div>
     <div class="section">
-      <div class="section-title">Environment</div>
-      <div class="control-row">
-        <div class="control-label">FOOD SPREAD</div>
-        <input type="range" id="foodRate" min="1" max="20" value="8" oninput="updateParam('foodRate', this)">
-        <div class="val-display" id="foodRateVal">8</div>
+      <div class="section-title-row">
+        <div class="section-title" style="margin-bottom:0">Environment</div>
+        <button class="collapse-btn" onclick="toggleSection('envBody',this)" title="Toggle">▼</button>
       </div>
-      <div class="control-row">
-        <div class="control-label">MAX FOOD</div>
-        <input type="range" id="maxFood" min="20" max="1000" value="120" oninput="updateParam('maxFood', this)">
-        <div class="val-display" id="maxFoodVal">120</div>
-      </div>
-      <div class="control-row">
-        <div class="control-label">MUTATION</div>
-        <input type="range" id="mutRate" min="0" max="50" value="10" oninput="updateParam('mutRate', this)">
-        <div class="val-display" id="mutRateVal">10%</div>
+      <div id="envBody">
+        <div class="control-row">
+          <div class="control-label">FOOD SPREAD</div>
+          <input type="range" id="foodRate" min="1" max="50" value="8" oninput="updateParam('foodRate', this)">
+          <div class="val-display" id="foodRateVal">8</div>
+        </div>
+        <div class="control-row">
+          <div class="control-label">MAX FOOD</div>
+          <input type="range" id="maxFood" min="20" max="1000" value="120" oninput="updateParam('maxFood', this)">
+          <div class="val-display" id="maxFoodVal">120</div>
+        </div>
+        <div class="control-row">
+          <div class="control-label">MUTATION</div>
+          <input type="range" id="mutRate" min="0" max="50" value="10" oninput="updateParam('mutRate', this)">
+          <div class="val-display" id="mutRateVal">10%</div>
+        </div>
+        <div class="control-row">
+          <div class="control-label">FLOCK STR</div>
+          <input type="range" id="flockStr" min="0" max="20" value="10" oninput="updateParam('flockStr', this)">
+          <div class="val-display" id="flockStrVal">10</div>
+        </div>
+        <div class="control-row">
+          <div class="control-label">MAX FIRE</div>
+          <input type="range" id="maxFire" min="0" max="30" value="10" oninput="updateParam('maxFire', this)">
+          <div class="val-display" id="maxFireVal">10</div>
+        </div>
+        <button class="btn" id="pheroBtn" onclick="togglePhero()" style="margin-top:2px;">◎ SHOW SCENT TRAILS</button>
       </div>
     </div>
     <div class="section">
-      <div class="section-title">Spawn</div>
-      <button class="btn" id="spawnH" onclick="spawnCreatures('herbivore', spawnAmt())">+ <span id="spawnHlbl">1</span> HERBIVORE<span id="spawnHs"></span></button>
-      <button class="btn" id="spawnC" onclick="spawnCreatures('carnivore', spawnAmt())">+ <span id="spawnClbl">1</span> CARNIVORE<span id="spawnCs"></span></button>
-      <button class="btn" id="spawnF" onclick="spawnFood(spawnAmt())">+ <span id="spawnFlbl">1</span> FOOD</button>
-      <div style="display:flex;gap:6px;margin-top:8px;">
-        <button class="btn qty-btn active" id="qty1" onclick="setQty(1)" style="flex:1;text-align:center;padding:6px 0;">1</button>
-        <button class="btn qty-btn" id="qty10" onclick="setQty(10)" style="flex:1;text-align:center;padding:6px 0;">10</button>
-        <button class="btn qty-btn" id="qty25" onclick="setQty(25)" style="flex:1;text-align:center;padding:6px 0;">25</button>
+      <div class="section-title-row">
+        <div class="section-title" style="margin-bottom:0">Spawn</div>
+        <button class="collapse-btn" onclick="toggleSection('spawnBody',this)" title="Toggle">▼</button>
+      </div>
+      <div id="spawnBody">
+        <button class="btn" id="spawnH" onclick="spawnCreatures('herbivore', spawnAmt())">+ <span id="spawnHlbl">1</span> HERBIVORE<span id="spawnHs"></span></button>
+        <button class="btn" id="spawnC" onclick="spawnCreatures('carnivore', spawnAmt())">+ <span id="spawnClbl">1</span> CARNIVORE<span id="spawnCs"></span></button>
+        <button class="btn" id="spawnO" onclick="spawnCreatures('omnivore', spawnAmt())">+ <span id="spawnOlbl">1</span> OMNIVORE<span id="spawnOs"></span></button>
+        <button class="btn" id="spawnS" onclick="spawnSeed(spawnAmt())">+ <span id="spawnSlbl">1</span> SEED<span id="spawnSs"></span></button>
+        <button class="btn" id="spawnF" onclick="spawnFood(spawnAmt())">+ <span id="spawnFlbl">1</span> FOOD</button>
+        <div style="display:flex;gap:6px;margin-top:8px;">
+          <button class="btn qty-btn active" id="qty1" onclick="setQty(1)" style="flex:1;text-align:center;padding:6px 0;">1</button>
+          <button class="btn qty-btn" id="qty10" onclick="setQty(10)" style="flex:1;text-align:center;padding:6px 0;">10</button>
+          <button class="btn qty-btn" id="qty25" onclick="setQty(25)" style="flex:1;text-align:center;padding:6px 0;">25</button>
+        </div>
       </div>
     </div>
     <div class="section">
-      <div class="section-title">Legend</div>
-      <div class="legend">
+      <div class="section-title-row">
+        <div class="section-title" style="margin-bottom:0">Legend</div>
+        <button class="collapse-btn" id="legendToggle" onclick="toggleLegend()" title="Toggle legend">▼</button>
+      </div>
+      <div class="legend" id="legendBody">
         <div class="legend-item"><div class="legend-dot" style="background:var(--accent)"></div>HERBIVORE — eats food</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#00dce0"></div>OMNIVORE — food + corpses</div>
         <div class="legend-item"><div class="legend-dot" style="background:var(--accent2)"></div>CARNIVORE — hunts prey</div>
         <div class="legend-item"><div class="legend-dot" style="background:var(--accent3)"></div>FOOD — energy pellets</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#ffd166;border:1px dashed rgba(255,200,50,0.6)"></div>SEED — disperses food, vanishes</div>
         <div class="legend-item"><div class="legend-dot" style="background:#a29bfe"></div>MATING — purple, vulnerable!</div>
         <div class="legend-item"><div class="legend-dot" style="background:#ffd166;opacity:0.7"></div>SATED (90%+) — behaviour shift</div>
         <div class="legend-item"><div class="legend-dot" style="background:#a0b4f0;opacity:0.7"></div>SLEEPING — inert, vulnerable</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#ffa032;opacity:0.8"></div>SPRINTING — burning stamina</div>
+        <div class="legend-item"><div class="legend-dot" style="background:rgba(0,245,196,0.4)"></div>HERB SCENT — carnivores track</div>
+        <div class="legend-item"><div class="legend-dot" style="background:rgba(0,210,255,0.5)"></div>OMNI SCENT — distinct cyan</div>
+        <div class="legend-item"><div class="legend-dot" style="background:rgba(255,77,109,0.4)"></div>CARN SCENT — herbivores flee</div>
         <div class="legend-item"><div class="legend-dot" style="background:#5c3d1a;opacity:0.7"></div>CORPSE — carnivore food</div>
         <div class="legend-item"><div class="legend-dot" style="background:#636e72;opacity:0.4"></div>OLD AGE — no corpse</div>
       </div>
     </div>
     <div class="section">
-      <div class="section-title">Population Graph</div>
-      <div class="mini-chart"><canvas id="chartCanvas"></canvas></div>
+      <div class="section-title-row">
+        <div class="section-title" style="margin-bottom:0">Population Graph</div>
+        <button class="collapse-btn" onclick="toggleSection('graphBody',this)" title="Toggle">▼</button>
+      </div>
+      <div id="graphBody">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:5px;">
+          <div style="display:flex;align-items:center;gap:3px;font-size:8px;letter-spacing:1px;color:#00f5c4"><div style="width:8px;height:8px;background:#00f5c4;border-radius:1px;flex-shrink:0"></div>HERB</div>
+          <div style="display:flex;align-items:center;gap:3px;font-size:8px;letter-spacing:1px;color:#ff4d6d"><div style="width:8px;height:8px;background:#ff4d6d;border-radius:1px;flex-shrink:0"></div>CARN</div>
+          <div style="display:flex;align-items:center;gap:3px;font-size:8px;letter-spacing:1px;color:#2bbcff"><div style="width:8px;height:8px;background:#2bbcff;border-radius:1px;flex-shrink:0"></div>OMNI</div>
+          <div style="display:flex;align-items:center;gap:3px;font-size:8px;letter-spacing:1px;color:#ffd166"><div style="width:8px;height:8px;background:#ffd166;border-radius:1px;flex-shrink:0"></div>FOOD</div>
+        </div>
+        <div class="mini-chart"><canvas id="chartCanvas"></canvas></div>
+      </div>
     </div>
     <div class="section">
-      <div class="section-title">Selection Info</div>
-      <div class="info-box" id="infoBox"><b>Click a creature</b> to inspect its genes and status.</div>
+      <div class="section-title-row">
+        <div class="section-title" style="margin-bottom:0">Species <span id="speciesCount" style="color:var(--text);font-size:9px;letter-spacing:1px">0</span></div>
+        <button class="collapse-btn" onclick="toggleSection('speciesBody',this)" title="Toggle">▼</button>
+      </div>
+      <div id="speciesBody">
+        <div class="species-grid" id="speciesGrid"></div>
+      </div>
     </div>
-  </div>
-</div>
+    <div class="section">
+      <div class="section-title-row">
+        <div class="section-title" style="margin-bottom:0">Selection Info</div>
+        <button class="collapse-btn" onclick="toggleSection('infoBody',this)" title="Toggle">▼</button>
+      </div>
+      <div id="infoBody">
+        <div class="info-box" id="infoBox"><b>Click a creature</b> to inspect its genes and status.</div>
+      </div>
+    </div>
+
+    <!-- ── DEATH PANEL ─────────────────────────────────────────────────────────── -->
+    <div class="section">
+      <div class="section-title-row">
+        <div class="section-title" style="margin-bottom:0">☠ Deaths This Run</div>
+        <button class="collapse-btn" onclick="toggleSection('deathBody',this)" title="Toggle">▼</button>
+      </div>
+      <div id="deathBody">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;margin-bottom:6px;">
+          <div style="text-align:center;">
+            <div class="stat-val" id="deathHerb" style="color:var(--accent);font-size:13px;">0</div>
+            <div class="stat-lbl">Herb</div>
+          </div>
+          <div style="text-align:center;">
+            <div class="stat-val" id="deathCarn" style="color:var(--accent2);font-size:13px;">0</div>
+            <div class="stat-lbl">Carn</div>
+          </div>
+          <div style="text-align:center;">
+            <div class="stat-val" id="deathOmni" style="color:#2bbcff;font-size:13px;">0</div>
+            <div class="stat-lbl">Omni</div>
+          </div>
+        </div>
+        <div style="border-top:1px solid var(--border);padding-top:6px;display:grid;grid-template-columns:1fr 1fr;gap:4px;">
+          <div style="text-align:center;">
+            <div class="stat-val" id="deathByCarn" style="color:#ff4d6d;font-size:12px;">0</div>
+            <div class="stat-lbl">Predation</div>
+          </div>
+          <div style="text-align:center;">
+            <div class="stat-val" id="deathByEnergy" style="color:#ffd166;font-size:12px;">0</div>
+            <div class="stat-lbl">Starvation</div>
+          </div>
+          <div style="text-align:center;">
+            <div class="stat-val" id="deathByInfect" style="color:#c084fc;font-size:12px;">0</div>
+            <div class="stat-lbl">Infection</div>
+          </div>
+          <div style="text-align:center;">
+            <div class="stat-val" id="deathByAge" style="color:#94a3b8;font-size:12px;">0</div>
+            <div class="stat-lbl">Old Age</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── DEUS EX MACHINA ──────────────────────────────────────────────────── -->
+    <div class="deus-section">
+      <div class="section-title-row" style="margin-bottom:10px;">
+        <div class="deus-title" style="margin-bottom:0;">⚡ Deus Ex Machina</div>
+        <button class="collapse-btn" style="color:var(--accent2);" onclick="toggleSection('deusBody',this)" title="Toggle">▼</button>
+      </div>
+      <div id="deusBody">
+
+      <div class="deus-subtitle">— Seasons —</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:2px;">
+        <button class="btn deus" style="margin-bottom:0;font-size:9px;padding:5px 4px;" onclick="deusSetSeason(0)">🌱 SPRING</button>
+        <button class="btn deus" style="margin-bottom:0;font-size:9px;padding:5px 4px;" onclick="deusSetSeason(1)">☀️ SUMMER</button>
+        <button class="btn deus" style="margin-bottom:0;font-size:9px;padding:5px 4px;" onclick="deusSetSeason(2)">🍂 AUTUMN</button>
+        <button class="btn deus" style="margin-bottom:0;font-size:9px;padding:5px 4px;" onclick="deusSetSeason(3)">❄️ WINTER</button>
+      </div>
+      <button class="btn deus" id="longWinterBtn" onclick="deusLongWinter()" style="font-size:9px;margin-top:4px;">🧊 TRIGGER LONG WINTER</button>
+
+      <div class="deus-subtitle">— Weather —</div>
+      <button class="btn deus" id="randomWeatherBtn" onclick="toggleRandomWeather()" style="font-size:9px;">🎲 RANDOM EVENTS: OFF</button>
+      <button class="btn deus" id="deusdroughtBtn"  onclick="deusTriggerWeather('DROUGHT')"        style="font-size:9px;">🔥 DROUGHT</button>
+      <button class="btn deus" id="deusplagueBtn"   onclick="deusArmPlagueWind()"    style="font-size:9px;">💨 PLAGUE WIND</button>
+      <button class="btn deus" id="deusfrenzywBtn"  onclick="deusTriggerWeather('FEEDING FRENZY')" style="font-size:9px;">⚡ FEEDING FRENZY</button>
+      <button class="btn deus" id="deusblizzardBtn" onclick="deusTriggerWeather('BLIZZARD')"       style="font-size:9px;">🌨️ BLIZZARD</button>
+      <button class="btn deus" id="deustoxicBtn"    onclick="deusTriggerWeather('TOXIC RAIN')"     style="font-size:9px;">☠️ TOXIC RAIN</button>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:6px;">
+        <button class="btn deus" id="clearWeatherBtn" onclick="deusClearWeather()" style="font-size:9px;margin-bottom:0;">✕ CLEAR</button>
+        <button class="btn deus" id="clearToxicBtn"   onclick="deusClearToxic()"   style="font-size:9px;margin-bottom:0;">🧹 PURGE TOXIC</button>
+      </div>
+
+      <div class="deus-subtitle">— Catastrophes —</div>
+      <button class="btn deus" id="meteorBtn"     onclick="deusArmMeteor()"     style="font-size:9px;">☄️ METEOR STRIKE <span style="opacity:0.5;font-size:8px;">[click canvas]</span></button>
+      <button class="btn deus" id="frenzyCBtn"    onclick="deusFrenzy()"        style="font-size:9px;">🩸 CARNIVORE FRENZY</button>
+      <button class="btn deus" id="bloodMoonBtn"  onclick="deusBloodMoon()"     style="font-size:9px;">🌕 BLOOD MOON <span style="opacity:0.5;font-size:8px;">[10s]</span></button>
+      <button class="btn deus" id="invasiveBtn"   onclick="deusInvasive()"      style="font-size:9px;">🧬 INVASIVE SPECIES <span style="opacity:0.5;font-size:8px;">[click canvas]</span></button>
+
+      <div class="deus-subtitle">— Divine Intervention —</div>
+      <button class="btn deus" id="championBtn"   onclick="deusArmChampion()"   style="font-size:9px;">👑 CHAMPION <span style="opacity:0.5;font-size:8px;">[click creature]</span></button>
+      <button class="btn deus" id="teleportBtn"   onclick="deusArmTeleport()"   style="font-size:9px;">🌀 TELEPORT <span style="opacity:0.5;font-size:8px;">[click creature→place]</span></button>
+
+      <div class="deus-subtitle">— Targeted Mutations —</div>
+      <div class="type-tabs">
+        <button class="type-tab herb active" id="mutTabHerb" onclick="setMutTab('herbivore')">HERB</button>
+        <button class="type-tab carn"        id="mutTabCarn" onclick="setMutTab('carnivore')">CARN</button>
+        <button class="type-tab omni"        id="mutTabOmni" onclick="setMutTab('omnivore')">OMNI</button>
+      </div>
+      <div id="mutRows">
+        <!-- Populated by JS -->
+      </div>
+      </div><!-- end #deusBody -->
+    </div><!-- end .deus-section -->
+  </div><!-- end .panel -->
+</div><!-- end .main -->
 
 <footer>
   <span>ARTIFICIAL LIFE SIMULATOR — EVOLUTIONARY GENETICS ENGINE</span>
@@ -265,11 +713,107 @@
 <script>
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
+
+// Declared early — used by resize() and updateUI() before mobile JS block runs
+const isMobile = () => window.innerWidth <= 768;
 const chartCanvas = document.getElementById('chartCanvas');
 const chartCtx = chartCanvas.getContext('2d');
 
 let creatures = [];
 let foods = [];
+let seeds = []; // Seeds generate food but can't be eaten
+let selectedSpeciesId = null; // for species highlight feature
+
+// ── Species registry ─────────────────────────────────────────────────────────
+// Each species = { id, type, shape, count } where shape is a polygon vertex count
+// Base shapes per type: herbivore=6(hex), carnivore=4(diamond), omnivore=0(circle)
+// New species get shapes: 3(tri), 5(pent), 7(hept), 8(oct)...
+const EXTRA_SHAPES   = [3, 5, 7, 8, 9, 10, 11, 12, 3, 5, 7, 8, 9, 10]; // cycling pool — 14 distinct shapes
+let   speciesRegistry = {}; // key: speciesId -> { id, type, shape, color }
+let   nextShapeIdx    = 0;
+
+// Species distance threshold: creatures with genome distance > this fork a new species
+// Speciation distance threshold.
+// genomeVec normalises 7 traits into [0,1]; max possible distance = sqrt(7/7) = 1.0
+// With 10% mutation rate, children drift ~0.05–0.15 per generation.
+// Threshold of 0.25 means ~4-6 generations of directional drift before forking.
+const SPECIATION_THRESHOLD = 0.25;
+
+function genomeVec(dna) {
+  // Normalised vector of heritable traits for distance comparison
+  return [
+    dna.speed      / 5,
+    dna.sense      / 200,
+    dna.size       / 12,
+    dna.fertility  / 0.01,
+    dna.metabolism / 0.08,
+    dna.aggression,
+    (dna.stamina ?? 1.0),
+  ];
+}
+
+function genomeDist(a, b) {
+  const va = genomeVec(a), vb = genomeVec(b);
+  let s = 0;
+  for (let i = 0; i < va.length; i++) s += (va[i]-vb[i])**2;
+  return Math.sqrt(s / va.length);
+}
+
+function assignSpecies(c) {
+  // Find the closest registered species of same type
+  let bestId = null, bestDist = Infinity;
+  for (const [sid, sp] of Object.entries(speciesRegistry)) {
+    if (sp.type !== c.dna.type) continue;
+    const d = genomeDist(c.dna, sp.centroid);
+    if (d < bestDist) { bestDist = d; bestId = sid; }
+  }
+  if (bestId !== null && bestDist < SPECIATION_THRESHOLD) {
+    c.speciesId = bestId;
+  } else {
+    // Fork a new species
+    const sid = 'sp_' + Math.random().toString(36).slice(2,7);
+    const sameTypeSpecies = Object.values(speciesRegistry).filter(s => s.type === c.dna.type);
+    const isBase = sameTypeSpecies.length === 0;
+    const baseShape = c.dna.type === 'herbivore' ? 6
+                    : c.dna.type === 'omnivore'  ? 0
+                    : 4;
+    // Rotate through extra shapes; each type has its own counter
+    const shape = isBase ? baseShape : EXTRA_SHAPES[nextShapeIdx++ % EXTRA_SHAPES.length];
+    speciesRegistry[sid] = {
+      id: sid, type: c.dna.type, shape,
+      centroid: { type: c.dna.type, ...c.dna }
+    };
+    c.speciesId = sid;
+    console.log(`New species: ${sid} (${c.dna.type}, shape=${shape}, dist=${bestDist?.toFixed(3)})`);
+  }
+}
+
+function updateSpeciesCentroids() {
+  // Recalculate centroid (average genome) of each living species
+  const sums   = {};
+  const counts = {};
+  for (const c of creatures) {
+    if (!c.alive || !c.speciesId) continue;
+    const sid = c.speciesId;
+    if (!sums[sid]) { sums[sid] = genomeVec(c.dna).map(() => 0); counts[sid] = 0; }
+    const v = genomeVec(c.dna);
+    for (let i = 0; i < v.length; i++) sums[sid][i] += v[i];
+    counts[sid]++;
+  }
+  const keys = ['speed','sense','size','fertility','metabolism','aggression','stamina'];
+  const scale = [5, 200, 12, 0.01, 0.08, 1, 1.0];
+  for (const [sid, sp] of Object.entries(speciesRegistry)) {
+    if (!counts[sid]) continue;
+    const avg = sums[sid].map((s,i) => s / counts[sid]);
+    keys.forEach((k,i) => { sp.centroid[k] = avg[i] * scale[i]; });
+    sp.centroid.type = sp.type; // preserve type field
+  }
+  // Prune extinct species
+  const activeSids = new Set(creatures.filter(c => c.alive && c.speciesId).map(c => c.speciesId));
+  for (const sid of Object.keys(speciesRegistry)) {
+    if (!activeSids.has(sid)) delete speciesRegistry[sid];
+  }
+}
 let tick = 0;
 let generation = 1;
 let playing = true;
@@ -277,12 +821,235 @@ let speed = 1;
 let selectedCreature = null;
 let corpses = [];
 
+// ── Deus Ex Machina state ─────────────────────────────────────────────────────
+let deusMode = null;           // 'meteor' | 'champion' | 'teleport-pick' | 'teleport-place'
+let deusTeleportCreature = null; // creature waiting to be teleported
+let meteors = [];              // { x, y, countdown, maxCountdown } pending impacts
+let craters = [];              // { x, y, r, age } scorched zones blocking food growth
+const METEOR_COUNTDOWN = 120;  // ticks of warning before impact
+const METEOR_RADIUS    = 80;   // kill radius on impact
+const CRATER_DURATION  = 900;  // ticks before crater fades
+let longWinterActive   = false;
+let longWinterTicks    = 0;
+let frenziedTicks      = 0;    // carnivore frenzy duration remaining
+let toxicRainActive    = false; // food spawned is toxic
+let mutTargetType      = 'herbivore'; // which type the mutation nudges target
+let randomWeatherEnabled = false;    // whether random weather events fire automatically
+
+// ── Pheromone grids ───────────────────────────────────────────────────────────
+const PHERO_CELL = 8;        // pixels per grid cell
+let pheroW = 1, pheroH = 1; // grid dimensions, set on resize
+let pheroHerb = null;        // herbivore scent (teal) — carnivores follow this
+let pheroCarn = null;        // carnivore scent (red)  — herbivores flee this
+let pheroOmni = null;        // omnivore scent (cyan)  — distinct from herb
+let pheroCanvas = null;      // offscreen canvas for pre-blended pheromone image
+let pheroCtx2   = null;
+let pheroNeedsRedraw = true; // flag: redraw offscreen when data changes
+
+function initPhero() {
+  pheroW = Math.ceil(canvas.width  / PHERO_CELL);
+  pheroH = Math.ceil(canvas.height / PHERO_CELL);
+  pheroHerb = new Float32Array(pheroW * pheroH);
+  pheroCarn = new Float32Array(pheroW * pheroH);
+  pheroOmni = new Float32Array(pheroW * pheroH);
+  // Offscreen canvas mirrors the phero grid
+  pheroCanvas = document.createElement('canvas');
+  pheroCanvas.width  = pheroW * PHERO_CELL;
+  pheroCanvas.height = pheroH * PHERO_CELL;
+  pheroCtx2 = pheroCanvas.getContext('2d');
+  pheroNeedsRedraw = true;
+}
+
+function pheroIdx(gx, gy) { return gy * pheroW + gx; }
+
+function depositPhero(grid, x, y, amount) {
+  const gx = Math.floor(x / PHERO_CELL);
+  const gy = Math.floor(y / PHERO_CELL);
+  if (gx < 0 || gx >= pheroW || gy < 0 || gy >= pheroH) return;
+  grid[pheroIdx(gx, gy)] = Math.min(1, grid[pheroIdx(gx, gy)] + amount);
+}
+
+function samplePhero(grid, x, y) {
+  const gx = Math.floor(x / PHERO_CELL);
+  const gy = Math.floor(y / PHERO_CELL);
+  if (gx < 0 || gx >= pheroW || gy < 0 || gy >= pheroH) return 0;
+  return grid[pheroIdx(gx, gy)];
+}
+
+// Read gradient of grid at position — returns (dx,dy) pointing uphill
+function pheroGradient(grid, x, y) {
+  const gx = Math.floor(x / PHERO_CELL);
+  const gy = Math.floor(y / PHERO_CELL);
+  const get = (gx2, gy2) => {
+    if (gx2 < 0 || gx2 >= pheroW || gy2 < 0 || gy2 >= pheroH) return 0;
+    return grid[pheroIdx(gx2, gy2)];
+  };
+  const dx = get(gx+1, gy) - get(gx-1, gy);
+  const dy = get(gx, gy+1) - get(gx, gy-1);
+  return { dx, dy };
+}
+
+// Evaporate and diffuse the grid — called each tick
+function updatePhero(grid) {
+  const evap    = 0.992; // retain 99.2% each tick — slow fade
+  const diffuse = 0.06;  // how much bleeds to neighbours
+  const next = new Float32Array(grid.length);
+  for (let gy = 0; gy < pheroH; gy++) {
+    for (let gx = 0; gx < pheroW; gx++) {
+      const i   = pheroIdx(gx, gy);
+      const val = grid[i] * evap;
+      const bleed = val * diffuse;
+      next[i] += val - bleed;
+      // Spread a fraction to the 4 neighbours
+      if (gx > 0)          next[pheroIdx(gx-1, gy)] += bleed * 0.25;
+      if (gx < pheroW - 1) next[pheroIdx(gx+1, gy)] += bleed * 0.25;
+      if (gy > 0)          next[pheroIdx(gx, gy-1)] += bleed * 0.25;
+      if (gy < pheroH - 1) next[pheroIdx(gx, gy+1)] += bleed * 0.25;
+    }
+  }
+  grid.set(next);
+}
+
+
+// ── Spatial Grid ──────────────────────────────────────────────────────────────
+// Bins all objects into fixed-size cells so neighbour lookups are O(1) average
+// instead of O(n). Rebuilt from scratch each tick (cheap for <1000 objects).
+const GRID_CELL = 80; // px — tune to ~2× typical sense radius
+class SpatialGrid {
+  constructor(W, H) {
+    this.cols = Math.ceil(W / GRID_CELL);
+    this.rows = Math.ceil(H / GRID_CELL);
+    this.cells = new Array(this.cols * this.rows).fill(null).map(() => []);
+  }
+  _idx(x, y) {
+    const col = Math.max(0, Math.min(this.cols-1, Math.floor(x / GRID_CELL)));
+    const row = Math.max(0, Math.min(this.rows-1, Math.floor(y / GRID_CELL)));
+    return row * this.cols + col;
+  }
+  insert(obj) { this.cells[this._idx(obj.x, obj.y)].push(obj); }
+  // Query all objects within radius r of (x,y)
+  query(x, y, r) {
+    const c0 = Math.max(0, Math.floor((x-r)/GRID_CELL));
+    const c1 = Math.min(this.cols-1, Math.floor((x+r)/GRID_CELL));
+    const r0 = Math.max(0, Math.floor((y-r)/GRID_CELL));
+    const r1 = Math.min(this.rows-1, Math.floor((y+r)/GRID_CELL));
+    const out = [];
+    const r2  = r*r;
+    for (let row = r0; row <= r1; row++) {
+      for (let col = c0; col <= c1; col++) {
+        for (const o of this.cells[row*this.cols+col]) {
+          const dx = o.x-x, dy = o.y-y;
+          if (dx*dx+dy*dy <= r2) out.push(o);
+        }
+      }
+    }
+    return out;
+  }
+}
+
+// Per-tick grids (rebuilt in updateSim before creature updates)
+let sgCreatures = null; // all alive creatures
+let sgFoods     = null; // food pellets
+let sgCorpses   = null; // corpses
+
+function rebuildGrids() {
+  const W = canvas.width, H = canvas.height;
+  sgCreatures = new SpatialGrid(W, H);
+  sgFoods     = new SpatialGrid(W, H);
+  sgCorpses   = new SpatialGrid(W, H);
+  for (const c of creatures) { if (c.alive) sgCreatures.insert(c); }
+  for (const f of foods)     sgFoods.insert(f);
+  for (const co of corpses)  sgCorpses.insert(co);
+}
+
+// Grid-accelerated nearest-neighbour (replaces findNearest for hot paths)
+function gridNearest(x, y, grid, maxDist, filterFn) {
+  const candidates = grid ? grid.query(x, y, maxDist) : [];
+  let best = null, bd = maxDist * maxDist;
+  for (const o of candidates) {
+    if (filterFn && !filterFn(o)) continue;
+    const dx = o.x-x, dy = o.y-y;
+    const d2 = dx*dx+dy*dy;
+    if (d2 < bd) { bd = d2; best = o; }
+  }
+  return best;
+}
+
+// Grid-accelerated cone search
+function gridInCone(cx, cy, vx, vy, grid, range, halfArc, filterFn) {
+  const candidates = grid ? grid.query(cx, cy, range) : [];
+  const heading = Math.atan2(vy, vx);
+  const spd     = Math.sqrt(vx*vx + vy*vy);
+  const useCone = spd > 0.1;
+  let best = null, bd = range*range;
+  for (const o of candidates) {
+    if (filterFn && !filterFn(o)) continue;
+    const dx = o.x-cx, dy = o.y-cy;
+    const d2 = dx*dx+dy*dy;
+    if (d2 >= bd) continue;
+    if (useCone) {
+      let diff = Math.atan2(dy, dx) - heading;
+      while (diff >  Math.PI) diff -= 2*Math.PI;
+      while (diff < -Math.PI) diff += 2*Math.PI;
+      if (Math.abs(diff) > halfArc) continue;
+    }
+    bd = d2; best = o;
+  }
+  return best;
+}
+
 // How many ticks creatures stay in the purple mating state before baby spawns
 const MATING_DURATION = 60;
 
-const params = { foodRate: 8, maxFood: 120, mutRate: 10 };
-const history = { h: [], c: [], f: [] };
+const params = { foodRate: 8, maxFood: 120, mutRate: 10, flockStr: 10, showPhero: false, maxFire: 10 };
+const history = { h: [], c: [], o: [], f: [] };
 const MAX_HISTORY = 196;
+
+// ── Seasons ───────────────────────────────────────────────────────────────────
+const SEASON_LENGTH = 4800; // ticks per season (4× original for richer cycles)
+const DAY_LENGTH    = 1800; // ticks per day (1.5 original seasons)
+const NIGHT_LENGTH  = 1800; // ticks per night
+const SEASONS = [
+  { name: 'SPRING', emoji: '🌱', color: '#00f5c4', foodMult: 2.2,  metaMult: 0.85, barColor: '#00f5c4' },
+  { name: 'SUMMER', emoji: '☀️', color: '#ffd166', foodMult: 1.0,  metaMult: 1.0,  barColor: '#ffd166' },
+  { name: 'AUTUMN', emoji: '🍂', color: '#ff9a3c', foodMult: 0.55, metaMult: 1.15, barColor: '#ff9a3c' },
+  { name: 'WINTER', emoji: '❄️', color: '#a0b4f0', foodMult: 0.2,  metaMult: 1.45, barColor: '#a0b4f0' },
+];
+let currentSeasonIdx = 0;
+let seasonTick = 0; // ticks elapsed in current season
+let dayTick    = 0; // ticks elapsed in current day/night phase
+let isNight    = false; // current phase
+
+function getCurrentSeason() { return SEASONS[currentSeasonIdx]; }
+
+// ── Weather events ─────────────────────────────────────────────────────────────
+const WEATHER_EVENTS = [
+  { name: 'DROUGHT',        emoji: '🔥', color: '#ff6b35', foodMult: 0.15, metaMult: 1.1,  duration: 700,  desc: 'Food growth halted. All creatures burn more energy.' },
+  { name: 'PLAGUE WIND',    emoji: '💨', color: '#c084fc', foodMult: 1.0,  metaMult: 1.0,  duration: 600,  desc: 'Click to place a plague zone. Infection spreads by proximity — 15 stacks = death.' },
+  { name: 'FEEDING FRENZY', emoji: '⚡', color: '#00f5c4', foodMult: 2.8,  metaMult: 0.9,  duration: 450,  desc: 'Food explodes. Populations surge — then crash.' },
+  { name: 'BLIZZARD',       emoji: '🌨️', color: '#7dd3fc', foodMult: 0.05, metaMult: 1.6,  duration: 600,  desc: 'Near-zero food. Metabolism spikes. Only the fat survive.' },
+  { name: 'TOXIC RAIN',     emoji: '☠️', color: '#a3e635', foodMult: 1.8,  metaMult: 1.0,  duration: 500,  desc: 'Food blooms but is toxic. Eating drains energy and blocks feeding. Toxicity spreads through corpses.' },
+];
+let activeWeather = null;    // { event, ticksLeft }
+let weatherCooldown = 800;   // ticks until next possible event
+let plagueZones       = [];    // { x, y, r, ticksLeft }
+let plagueRadius      = 160;
+let fires             = [];    // { x, y, intensity, carriedBy|null, age }
+let championCooldown  = 0;     // ticks until next auto-champion allowed
+let invasiveCount     = 0;
+
+// ── Death statistics ──────────────────────────────────────────────────────────
+const deathStats = {
+  herb: 0, carn: 0, omni: 0,   // by type
+  byCarnivore: 0, byEnergy: 0, byInfection: 0, byAge: 0  // by cause
+};
+
+// Territorial memory — two Float32 heatmaps (carnivore pressure, grazing density)
+// Rebuilt lazily every N ticks. Resolution: one cell per TERR_CELL px.
+const TERR_CELL = 12;
+let terrW = 0, terrH = 0;
+let terrCarn = null;  // Float32Array — carnivore footfall
+let terrGraze = null; // Float32Array — herbivore footfall
 
 // ── DNA ───────────────────────────────────────────────────────────────────────
 function randomDNA(type) {
@@ -294,6 +1061,10 @@ function randomDNA(type) {
     fertility:  0.001 + Math.random() * 0.004,
     metabolism: 0.015 + Math.random() * 0.03,
     aggression: type === 'carnivore' ? 0.5 + Math.random() * 0.5 : Math.random() * 0.3,
+    stamina:    (type === 'carnivore' || type === 'omnivore') ? 0.4 + Math.random() * 0.6 : 1.0,
+    sociability: type === 'herbivore' ? 0.4 + Math.random() * 0.6
+               : type === 'omnivore'  ? 0.2 + Math.random() * 0.5
+               : 0.1 + Math.random() * 0.3, // carnivores naturally less social
   };
 }
 
@@ -308,13 +1079,22 @@ function mutateDNA(dna) {
     fertility:  Math.max(0.0005, Math.min(0.01, mut(dna.fertility))),
     metabolism: Math.max(0.005,  Math.min(0.08, mut(dna.metabolism))),
     aggression: Math.max(0,   Math.min(1,    mut(dna.aggression))),
+    stamina:    Math.max(0.1, Math.min(1.0,  mut(dna.stamina ?? 1.0))),
+    sociability: Math.max(0.0, Math.min(1.0,  mut(dna.sociability ?? 0.5))),
   };
+}
+
+// ── Helpers (size-scaled stats) ──────────────────────────────────────────────
+function maxEnergy(c) {
+  // Larger creatures have higher max energy (more health in the bite system)
+  // Base 300, +20 per size unit above 3 (min size), capped at 600
+  return Math.round(300 + Math.max(0, c.dna.size - 3) * 20);
 }
 
 // ── Factory ───────────────────────────────────────────────────────────────────
 function createCreature(type, x, y, dna) {
   dna = dna || randomDNA(type);
-  return {
+  const c = {
     id:             Math.random().toString(36).slice(2),
     dna,
     x:              x ?? Math.random() * canvas.width,
@@ -332,31 +1112,157 @@ function createCreature(type, x, y, dna) {
     sleepTicks:     0,     // ticks remaining in sleep
     sleepCooldown:  Math.floor(Math.random() * 400) + 200, // ticks until next sleep check
     wakeScatter:    0,     // >0 = startled, flee at full speed
+    sprinting:      false, // is currently sprinting
+    packTarget:     null,  // shared prey reference for pack hunting
+    status:         'WANDERING',
+    speciesId:      null,  // assigned by speciation system
+    // ── Memory (individual learning) ─────────────────────────────────────
+    memFoodX:       null,  // last position where food was successfully eaten
+    memFoodY:       null,
+    memFoodAge:     0,     // how many ticks ago food was found (fades usefulness)
+    memHuntWins:    {},    // { preyType: successCount } for predator intelligence
+    memHuntAttempts:{},    // { preyType: attemptCount }
     trail:          [],
     gen:            generation,
+    // ── Status flags ─────────────────────────────────────────────────────────
+    toxic:          false,   // currently poisoned
+    toxicTicks:     0,       // ticks remaining of toxic effect
+    eatBlock:       0,       // ticks blocked from eating (toxic/sick)
+    infectionStacks:0,       // 0-15 infection stacks
+    infStackCooldown:0,      // ticks until can receive next stack
+    // ── Fission-fusion ───────────────────────────────────────────────────────
+    groupId:        null,
+    panicTicks:     0,
+    desperateTicks: 0,
+    // ── Herbivore flee burst ──────────────────────────────────────────────────
+    fleeCharge:     true,    // has burst available
+    fleeBursting:   0,       // ticks remaining of burst
+    // ── Omnivore roles ───────────────────────────────────────────────────────
+    mateEnergyStart: 0,    // energy at the start of SEEKING MATE (for stuck detection)
+    mateSeekTicks:  0,    // ticks spent seeking a mate this cycle
+    omniRole:       null,    // null | 'torchbearer' | 'breeder'
+    raidingWith:    0,       // tick raid membership token (set to tick when joining)
+    // ── Champion / Disciple ──────────────────────────────────────────────────
+    disciple:       false,
+    discipleTicks:  0,       // ticks remaining of disciple buff
+    carnKills:      0,       // lifetime carnivore kills (for this creature)
   };
+  assignSpecies(c);
+  return c;
 }
 
-function createFood(x, y) {
+function createFood(x, y, toxic) {
   return {
     x:      x ?? Math.random() * canvas.width,
     y:      y ?? Math.random() * canvas.height,
     energy: 20 + Math.random() * 30,
+    toxic:  toxic || false,
   };
 }
 
+function createSeed(x, y) {
+  return {
+    x:       x ?? Math.random() * canvas.width,
+    y:       y ?? Math.random() * canvas.height,
+    budget:  100 + Math.floor(Math.random() * 200), // disperses 100–300 food then dies
+    spawned: 0,
+    age:     0,
+  };
+}
+function spawnSeed(n) { for (let i = 0; i < (n||1); i++) seeds.push(createSeed()); }
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 function resetSim() {
-  creatures = []; foods = []; corpses = [];
+  creatures = []; foods = []; corpses = []; seeds = []; initPhero();
   tick = 0; generation = 1;
-  history.h = []; history.c = []; history.f = [];
+  history.h = []; history.c = []; history.o = []; history.f = [];
   selectedCreature = null;
-  for (let i = 0; i < 20; i++) creatures.push(createCreature('herbivore'));
-  for (let i = 0; i < 6;  i++) creatures.push(createCreature('carnivore'));
-  for (let i = 0; i < 60; i++) foods.push(createFood());
+  speciesRegistry = {}; nextShapeIdx = 0;
+  currentSeasonIdx = 0; seasonTick = 0;
+  activeWeather = null; weatherCooldown = 800;
+  selectedSpeciesId = null;
+  // Deus state
+  deusMode = null; deusTeleportCreature = null;
+  meteors = []; craters = []; plagueZones = []; fires = [];
+  longWinterActive = false; longWinterTicks = 0;
+  frenziedTicks = 0; toxicRainActive = false;
+  randomWeatherEnabled = false;
+  dayTick = 0; isNight = false;
+  championCooldown = 0; invasiveCount = 0;
+  terrW = 0; terrH = 0; terrCarn = null; terrGraze = null;
+  deathStats.herb = 0; deathStats.carn = 0; deathStats.omni = 0;
+  deathStats.byCarnivore = 0; deathStats.byEnergy = 0; deathStats.byInfection = 0; deathStats.byAge = 0;
+  ['randomWeatherBtn','mobRandomWeatherBtn'].forEach(id => {
+    const b = document.getElementById(id);
+    if (b) { b.textContent = '🎲 RANDOM EVENTS: OFF'; b.classList.remove('active-event'); }
+  });
+  clearDeusArmed();
+  for (let i = 0; i < 40; i++) creatures.push(createCreature('herbivore'));
+  for (let i = 0; i < 10; i++) creatures.push(createCreature('carnivore'));
+  for (let i = 0; i < 15; i++) creatures.push(createCreature('omnivore'));
+  for (let i = 0; i < 50; i++) foods.push(createFood());
 }
 
 function spawnCreatures(type, n) { for (let i = 0; i < n; i++) creatures.push(createCreature(type)); }
+
+function spawnFromSpecies(sid) {
+  const sp = speciesRegistry[sid];
+  if (!sp) { console.warn('spawnFromSpecies: unknown sid', sid); return; }
+  const n = spawnAmt();
+  for (let i = 0; i < n; i++) {
+    const dna = mutateDNA({ ...sp.centroid, type: sp.type });
+    // Build directly — don't use createCreature() which calls assignSpecies()
+    // and would reassign speciesId based on genome distance
+    const creature = {
+      id:              Math.random().toString(36).slice(2),
+      dna,
+      x:               Math.random() * canvas.width,
+      y:               Math.random() * canvas.height,
+      vx:              (Math.random() - 0.5) * 2,
+      vy:              (Math.random() - 0.5) * 2,
+      energy:          150,
+      age:             0,
+      alive:           true,
+      matingWith:      null,
+      matingTicks:     0,
+      matingCooldown:  0,
+      mateCount:       0,
+      sleeping:        false,
+      sleepTicks:      0,
+      sleepCooldown:   Math.floor(Math.random() * 400) + 200,
+      wakeScatter:     0,
+      sprinting:       false,
+      packTarget:      null,
+      status:          'WANDERING',
+      speciesId:       sid,
+      memFoodX:        null,
+      memFoodY:        null,
+      memFoodAge:      0,
+      memHuntWins:     {},
+      memHuntAttempts: {},
+      trail:           [],
+      gen:             generation,
+      toxic:           false,
+      toxicTicks:      0,
+      eatBlock:        0,
+      infectionStacks: 0,
+      infStackCooldown:0,
+      groupId:         null,
+      panicTicks:      0,
+      desperateTicks:  0,
+      fleeCharge:      true,
+      fleeBursting:    0,
+      mateEnergyStart: 0,
+      mateSeekTicks:  0,
+      omniRole:        null,
+      raidingWith:     0,
+      disciple:        false,
+      discipleTicks:   0,
+      carnKills:       0,
+    };
+    creatures.push(creature);
+  }
+}
 function spawnFood(n)            { for (let i = 0; i < n; i++) foods.push(createFood()); }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -374,20 +1280,141 @@ function findNearest(c, list, maxDist) {
   return best;
 }
 
+// Returns success rate [0..1] for a given prey key, defaulting to 0.5 (neutral) if no data
+function huntSuccessRate(c, preyType, extra) {
+  const key = preyType + (extra || '');
+  const wins = c.memHuntWins    ? (c.memHuntWins[key]     || 0) : 0;
+  const att  = c.memHuntAttempts? (c.memHuntAttempts[key] || 0) : 0;
+  if (att < 3) return 0.5; // insufficient data — neutral
+  return wins / att;
+}
+
+// Cone vision for carnivores — forward-facing arc, longer range
+// angle is half-arc in radians (Math.PI/3 = 60° each side = 120° total)
+function findInCone(c, list, range, halfArc) {
+  const heading = Math.atan2(c.vy, c.vx);
+  // Fallback to full circle if barely moving
+  const spd = Math.sqrt(c.vx*c.vx + c.vy*c.vy);
+  const useCone = spd > 0.1;
+  let best = null, bd = range;
+  for (const item of list) {
+    const dx = item.x - c.x, dy = item.y - c.y;
+    const d = Math.sqrt(dx*dx + dy*dy);
+    if (d >= bd) continue;
+    if (useCone) {
+      const angle = Math.atan2(dy, dx);
+      let diff = angle - heading;
+      // Normalise to -PI..PI
+      while (diff >  Math.PI) diff -= 2*Math.PI;
+      while (diff < -Math.PI) diff += 2*Math.PI;
+      if (Math.abs(diff) > halfArc) continue;
+    }
+    bd = d; best = item;
+  }
+  return best;
+}
+
+// ── Champion helpers ─────────────────────────────────────────────────────────
+function omnivoreKillCarnivore(omni) {
+  // Called when an omnivore kills a carnivore
+  // Disciples bypass cooldown and always promote
+  if (omni.disciple) {
+    promoteChampion(omni, true);
+    return;
+  }
+  // Others: 50% chance, respect auto-cooldown
+  if (championCooldown > 0) return;
+  if (Math.random() < 0.5) promoteChampion(omni, false);
+}
+
+function promoteChampion(omni, bypassCooldown) {
+  // Don't wipe existing champions — multiple allowed
+  omni.champion     = true;
+  omni.disciple     = false;
+  omni.discipleTicks = 0;
+  omni.energy       = Math.min(maxEnergy(omni), omni.energy + 80);
+  omni.dna.speed    = Math.min(5,   omni.dna.speed   * 1.35);
+  omni.dna.size     = Math.min(12,  omni.dna.size    * 1.2);
+  omni.dna.sense    = Math.min(200, omni.dna.sense   * 1.25);
+  omni.dna.stamina  = Math.min(1.0, omni.dna.stamina * 1.3);
+  if (!bypassCooldown) championCooldown = 600;
+  showWeatherBanner('👑 NEW CHAMPION', '#ffd700', 120,
+    `An omnivore has proven their might.`);
+}
+
+function spawnDisciples(deadChampion) {
+  // 3 nearest alive omnivores get disciple buff
+  const alive = creatures.filter(c => c.alive && c.dna.type === 'omnivore' && c !== deadChampion);
+  alive.sort((a, b) => dist(a, deadChampion) - dist(b, deadChampion));
+  const candidates = alive.slice(0, 3);
+  for (const d2 of candidates) {
+    d2.disciple       = true;
+    d2.discipleTicks  = 2400; // 40s
+    d2.dna.speed      = Math.min(5,   d2.dna.speed  * 1.15);
+    d2.dna.sense      = Math.min(200, d2.dna.sense  * 1.12);
+    d2.dna.aggression = Math.min(1.0, d2.dna.aggression + 0.08);
+  }
+  if (candidates.length > 0)
+    showWeatherBanner('⚔ DISCIPLES ARISE', '#ffaa00', 120,
+      `${candidates.length} omnivore${candidates.length>1?'s':''} inherit the champion's legacy.`);
+}
+
 // ── Update ────────────────────────────────────────────────────────────────────
 function updateCreature(c) {
   if (!c.alive) return;
 
   c.age++;
-  if (c.matingCooldown > 0) c.matingCooldown--;
-  c.energy -= c.dna.metabolism + c.dna.speed * 0.003 + c.dna.size * 0.002;
+  if (c.matingCooldown   > 0) c.matingCooldown--;
+  if (c.eatBlock         > 0) c.eatBlock--;
+  if (c.panicTicks       > 0) c.panicTicks--;
+  if (c.desperateTicks   > 0) c.desperateTicks--;
+  if (c.infStackCooldown > 0) c.infStackCooldown--;
+  if (c.fleeBursting     > 0) c.fleeBursting--;
+  if (c.discipleTicks    > 0) { c.discipleTicks--; if (c.discipleTicks === 0) c.disciple = false; }
+
+  // ── Toxic recovery: ticks down, then clears ──────────────────────────────
+  if (c.toxic) {
+    c.toxicTicks--;
+    c.energy -= 0.18; // ongoing toxic drain
+    if (c.toxicTicks <= 0) { c.toxic = false; c.toxicTicks = 0; }
+  }
+
+  // ── Infection debuffs (applied via multipliers below) ────────────────────
+  const infected   = c.infectionStacks >= 5;
+  const contagious = c.infectionStacks >= 10;
+  // Stack decay: lose 1 stack every 600 ticks when not gaining
+  if (c.infectionStacks > 0 && c.infStackCooldown === 0 && tick % 600 === Math.floor(c.id.charCodeAt(0)) % 600) {
+    c.infectionStacks = Math.max(0, c.infectionStacks - 1);
+  }
+  // Infection energy drain
+  if (infected) c.energy -= 0.06;
+  // Normal metabolism; slow down in the last 20% to give the boom-bust cycle
+  // more time to stabilise rather than crash
+  const sizeMeta  = c.dna.size * 0.003; // larger = hungrier
+  const baseDrain = c.dna.metabolism + c.dna.speed * 0.003 + sizeMeta;
+  const seasonMult  = window._seasonMetaMult || 1.0;
+  const nightMult   = (window._isNight && c.dna.type !== 'carnivore') ? 0.88 : 1.0;
+  const infMult     = infected ? 1.12 : 1.0;
+  const drainMult   = (c.energy < 60 ? 0.45 : 1.0) * seasonMult * nightMult * infMult;
+  c.energy -= baseDrain * drainMult;
 
   if (c.energy <= 0 || c.age > 4000) {
     if (c.matingWith) { c.matingWith.matingWith = null; c.matingWith.matingTicks = 0; }
-    // Starvation leaves a corpse; old age does not
-    if (c.energy <= 0) {
-      corpses.push({ x: c.x, y: c.y, energy: 25 + Math.random() * 20, decay: 0 });
-    }
+    corpses.push({ x: c.x, y: c.y, energy: 20 + Math.random() * 25, decay: 0,
+                    fromType: c.dna.type, toxic: c.toxic || false });
+    if (pheroCarn) depositPhero(pheroCarn, c.x, c.y, 1.0);
+    if (pheroOmni) depositPhero(pheroOmni, c.x, c.y, 0.7);
+    if (c.champion) { spawnDisciples(c); c.champion = false; }
+    const myFire2 = fires.find(f => f.carriedBy === c);
+    if (myFire2) myFire2.carriedBy = null;
+    // ── Death stats ────────────────────────────────────────────────────────
+    if (c.dna.type === 'herbivore') deathStats.herb++;
+    else if (c.dna.type === 'carnivore') deathStats.carn++;
+    else deathStats.omni++;
+    if (c.infectionStacks >= 15)      deathStats.byInfection++;
+    else if (c.age > 4000)            deathStats.byAge++;
+    else if (c._killedByCarnivore)    deathStats.byCarnivore++;
+    else                              deathStats.byEnergy++;
     c.alive = false;
     return;
   }
@@ -411,9 +1438,10 @@ function updateCreature(c) {
 
     if (c.sleepTicks <= 0) {
       c.sleeping = false;
-      c.sleepCooldown = 300 + Math.floor(Math.random() * 400);
+      // Re-randomise cooldown each time to prevent synchronised sleep waves
+      c.sleepCooldown = 200 + Math.floor(Math.random() * 600);
     }
-    c.energy = Math.min(c.energy, 300);
+    c.energy = Math.min(c.energy, maxEnergy(c));
     return; // Skip all other behaviour while asleep
   }
 
@@ -433,7 +1461,7 @@ function updateCreature(c) {
     c.sleeping = true;
     c.sleepTicks = 180 + Math.floor(Math.random() * 180);
     c.vx *= 0.1; c.vy *= 0.1;
-    c.energy = Math.min(c.energy, 300);
+    c.energy = Math.min(c.energy, maxEnergy(c));
     return;
   }
 
@@ -481,6 +1509,7 @@ function updateCreature(c) {
             fertility:  avg(c.dna.fertility,  partner.dna.fertility),
             metabolism: avg(c.dna.metabolism, partner.dna.metabolism),
             aggression: avg(c.dna.aggression, partner.dna.aggression),
+            stamina:    avg(c.dna.stamina ?? 1.0, partner.dna.stamina ?? 1.0),
           });
           const child = createCreature(
             c.dna.type,
@@ -489,11 +1518,12 @@ function updateCreature(c) {
             childDNA
           );
           child.gen = newGen;
+          assignSpecies(child); // child may fork new species if sufficiently mutated
           creatures.push(child);
         }
         // Energy cost scales with number of offspring; carnivores pay 50% less
         const baseCost = 30 + numOffspring * 15;
-        const costMult = c.dna.type === 'carnivore' ? 0.5 : 1.0;
+        const costMult = (c.dna.type === 'carnivore' || c.dna.type === 'omnivore') ? 0.5 : 1.0;
         const cost = baseCost * costMult;
         c.energy -= cost; partner.energy -= cost * 0.5;
         c.matingCooldown = 120; partner.matingCooldown = 120;
@@ -508,7 +1538,7 @@ function updateCreature(c) {
       }
     }
 
-    c.energy = Math.min(c.energy, 300);
+    c.energy = Math.min(c.energy, maxEnergy(c));
     return; // Skip normal behaviour while mating
   }
 
@@ -516,180 +1546,672 @@ function updateCreature(c) {
   c.trail.push({ x: c.x, y: c.y });
   if (c.trail.length > 8) c.trail.shift();
 
-  const MATE_ENERGY  = 240; // 80% of max 300 — required to mate
-  const SATED_ENERGY = 270; // 90% of max 300 — above this, behaviour shifts
-  const MAX_MATES    = 3;   // after 3 successful matings, ineligible forever
+  const nightFertMult = window._nightFertMult || 1.0;
+  const bloodMoon    = !!(window._bloodMoon && isNight);
+  const ME           = maxEnergy(c);
+  const MATE_ENERGY  = bloodMoon ? Math.round(ME * 0.20) : (isNight ? Math.round(ME * 0.67) : Math.round(ME * 0.80));
+  const SATED_ENERGY = Math.round(ME * 0.90);
+  const MAX_MATES    = c.dna.type === 'herbivore' ? 3 : 5; // carns/omnis retire at 5
 
-  const isSated    = c.energy >= SATED_ENERGY;
-  const canMate    = c.matingCooldown === 0 && c.mateCount < MAX_MATES && !c.matingWith;
-  const mateElig   = canMate && c.energy >= MATE_ENERGY;
+  const isSated       = c.energy >= SATED_ENERGY;
+  const canMate       = c.matingCooldown === 0 && c.mateCount < MAX_MATES && !c.matingWith;
+  const mateElig      = canMate && c.energy >= MATE_ENERGY;
+  const carnDesperate = c.dna.type === 'carnivore' && c.energy < 60;
+  const omniDesperate = c.dna.type === 'omnivore'  && c.energy < 60;
 
   let tx = null, ty = null;
 
   if (c.dna.type === 'herbivore') {
-    // Always flee carnivores (stronger urge when sated — nothing to distract from survival)
-    const predator = findNearest(c,
-      creatures.filter(o => o.alive && o.dna.type === 'carnivore'),
-      isSated ? c.dna.sense * 1.4 : c.dna.sense); // wider awareness when sated
-    if (predator) {
-      const dx = c.x - predator.x, dy = c.y - predator.y;
-      const d = Math.sqrt(dx*dx + dy*dy) + 0.001;
-      tx = c.x + (dx/d) * (isSated ? 120 : 80);
-      ty = c.y + (dy/d) * (isSated ? 120 : 80);
+    c.status = 'FORAGING';
+    // Shepherded herbivores feel protected — they don't flee (shepherd provides safety)
+    const isShepherded = !!(c._shepherdRef && c._shepherdRef.alive);
+    // Always flee carnivores UNLESS currently shepherded
+    if (!isShepherded) {
+      // Panic overrides everything — witness flee from omnivore kills
+      if (c.panicTicks > 0) {
+        c.vx += (Math.random()-0.5)*1.5; c.vy += (Math.random()-0.5)*1.5;
+        c.status = 'PANICKING';
+        tx = c.x + c.vx * 40; ty = c.y + c.vy * 40;
+      }
+      const fleeRange = isSated ? c.dna.sense * 1.4 : c.dna.sense;
+      if (tx === null) {
+        const predator = gridNearest(c.x, c.y, sgCreatures, fleeRange,
+          o => o !== c && o.dna.type === 'carnivore');
+        if (predator) {
+          const dx = c.x - predator.x, dy = c.y - predator.y;
+          const d  = Math.sqrt(dx*dx + dy*dy) + 0.001;
+          tx = c.x + (dx/d) * (isSated ? 120 : 80);
+          ty = c.y + (dy/d) * (isSated ? 120 : 80);
+          c.status = 'FLEEING';
+          // Flee burst: single-use speed burst when predator is close
+          const closeDist = c.dna.size * 5 + predator.dna.size * 3;
+          if (c.fleeCharge && d < closeDist * d && c.fleeBursting === 0) {
+            c.fleeCharge   = false;
+            c.fleeBursting = 80; // ~1.3s burst
+          }
+        }
+      }
+      // Avoid infected agents (herbivores flee slightly)
+      if (tx === null) {
+        const infAgent = gridNearest(c.x, c.y, sgCreatures, c.dna.sense * 0.7,
+          o => o !== c && o.infectionStacks >= 10);
+        if (infAgent) {
+          const dx = c.x - infAgent.x, dy = c.y - infAgent.y;
+          const d = Math.sqrt(dx*dx+dy*dy)+0.001;
+          c.vx += (dx/d) * 0.18; c.vy += (dy/d) * 0.18;
+        }
+      }
+    } else {
+      c.status = 'SHEPHERDED';
     }
+    // Recharge flee burst on full energy or after sleep
+    if (!c.fleeCharge && (c.energy >= maxEnergy(c) * 0.98 || c.sleeping)) c.fleeCharge = true;
+    // Desperate herbivore: below 15% breaks from herd
+    if (c.energy < maxEnergy(c) * 0.15) { c.desperateTicks = 60; }
+
     // Mildly repelled by corpses (smell of death = predator nearby)
     if (tx === null) {
-      const corpse = findNearest(c, corpses, c.dna.sense * 0.5);
+      const corpse = gridNearest(c.x, c.y, sgCorpses, c.dna.sense * 0.5, null);
       if (corpse) {
         const dx = c.x - corpse.x, dy = c.y - corpse.y;
         const d = Math.sqrt(dx*dx + dy*dy) + 0.001;
         tx = c.x + (dx/d) * 40; ty = c.y + (dy/d) * 40;
       }
     }
+    // Flee carnivore pheromone trail — avoid areas carnivores recently passed through
+    // (Herbivores only — omnivores don't fear carnivore scent)
+    if (tx === null && pheroCarn) {
+      const grad = pheroGradient(pheroCarn, c.x, c.y);
+      const mag  = Math.sqrt(grad.dx*grad.dx + grad.dy*grad.dy);
+      if (mag > 0.02) {
+        c.vx -= (grad.dx/mag) * 0.25;
+        c.vy -= (grad.dy/mag) * 0.25;
+      }
+    }
     // Only seek food when NOT sated
     if (tx === null && !isSated) {
-      const food = findNearest(c, foods, c.dna.sense);
-      if (food) { tx = food.x; ty = food.y; }
+      const food = gridNearest(c.x, c.y, sgFoods, c.dna.sense, null);
+      if (food) { tx = food.x; ty = food.y; c.status = 'SEEKING FOOD'; }
     }
-    // Seek mate when eligible (sated herbivores actively seek mates)
+    // Seek mate when eligible
     if (tx === null && mateElig) {
-      const mate = findNearest(c,
-        creatures.filter(o => o.alive && o !== c && o.dna.type === 'herbivore' &&
-                              o.energy >= MATE_ENERGY && o.matingCooldown === 0 &&
-                              !o.matingWith && o.mateCount < MAX_MATES),
-        c.dna.sense * 0.8);
-      if (mate) { tx = mate.x; ty = mate.y; }
+      const mate = gridNearest(c.x, c.y, sgCreatures, c.dna.sense * 0.8,
+        o => o !== c && o.dna.type === 'herbivore' && o.energy >= MATE_ENERGY
+          && o.matingCooldown === 0 && !o.matingWith && o.mateCount < MAX_MATES);
+      if (mate) { tx = mate.x; ty = mate.y; c.status = 'SEEKING MATE'; }
+    }
+    if (isSated && tx === null) c.status = 'SATED — WANDERING';
+
+  } else if (c.dna.type === 'omnivore') {
+    // ── OMNIVORE BEHAVIOUR ──────────────────────────────────────────────────
+    // Dual vision: cone (forward, long) + circle (close, omnidirectional)
+    const CONE_RANGE  = c.dna.sense * 1.8;
+    const CONE_ARC    = Math.PI / 3;
+
+    c.sprinting = false;
+    c.status = 'FORAGING';
+
+    const lists = window._simLists || {};
+    const dangerCarn = gridNearest(c.x, c.y, sgCreatures, c.dna.sense,
+      o => o !== c && o.dna.type === 'carnivore');
+
+    // Avoid contagious infected agents (omnivores avoid cautiously)
+    {
+      const infAgent = gridNearest(c.x, c.y, sgCreatures, c.dna.sense * 0.6,
+        o => o !== c && o.infectionStacks >= 10);
+      if (infAgent) {
+        const dx = c.x - infAgent.x, dy = c.y - infAgent.y;
+        const d = Math.sqrt(dx*dx+dy*dy)+0.001;
+        c.vx += (dx/d) * 0.22; c.vy += (dy/d) * 0.22;
+      }
+    }
+
+    if (isSated) {
+      // Assign role if none, or drop if no longer sated
+      if (!c.omniRole) c.omniRole = Math.random() < 0.5 ? 'torchbearer' : 'breeder';
+
+      if (c.omniRole === 'torchbearer') {
+        c.status = 'TORCHBEARER';
+        // Seek nearest fire to carry, or just wander slowly
+        const nearFire = fires.find(f => !f.carriedBy && dist(c, f) < c.dna.sense * 1.5);
+        if (nearFire) {
+          if (dist(c, nearFire) < c.dna.size + 6) {
+            nearFire.carriedBy = c; // pick up
+          } else {
+            tx = nearFire.x; ty = nearFire.y;
+          }
+        }
+        // Already carrying: fire follows in updateSim, just wander
+      } else if (c.omniRole === 'breeder') {
+        c.status = 'BREEDING GROUND';
+        // Breeder boosts mate-sense of nearby omnivores — applied in updateSim
+        // Seek mates if eligible
+        if (mateElig) {
+          const mate = gridNearest(c.x, c.y, sgCreatures, c.dna.sense * 2.4,
+            o => o !== c && o.dna.type === 'omnivore' && o.energy >= MATE_ENERGY
+              && o.matingCooldown === 0 && !o.matingWith && o.mateCount < MAX_MATES);
+          if (mate) { tx = mate.x; ty = mate.y; c.status = 'SEEKING MATE'; }
+        }
+      } else {
+        // Shepherding (fallback)
+        c.status = 'SHEPHERDING';
+        // Fortification: position between nearest carnivore and herbivores
+        const nearCarn = gridNearest(c.x, c.y, sgCreatures, c.dna.sense * 1.2,
+          o => o !== c && o.dna.type === 'carnivore' && !o.sleeping);
+        if (nearCarn) {
+          const nearHerb = gridNearest(c.x, c.y, sgCreatures, c.dna.sense,
+            o => o !== c && o.dna.type === 'herbivore' && o._shepherdRef === c);
+          if (nearHerb) {
+            // Move between carnivore and herbivore
+            const mx2 = (nearCarn.x + nearHerb.x) / 2;
+            const my2 = (nearCarn.y + nearHerb.y) / 2;
+            tx = mx2; ty = my2; c.status = 'FORTIFYING';
+          }
+        }
+        if (tx === null && mateElig) {
+          const mate = gridNearest(c.x, c.y, sgCreatures, c.dna.sense * 0.8,
+            o => o !== c && o.dna.type === 'omnivore' && o.energy >= MATE_ENERGY
+              && o.matingCooldown === 0 && !o.matingWith && o.mateCount < MAX_MATES);
+          if (mate) { tx = mate.x; ty = mate.y; c.status = 'SEEKING MATE'; }
+        }
+      }
+    } else {
+      // Drop role when not sated
+      if (c.omniRole === 'torchbearer') {
+        // Drop any carried fire
+        const myFire = fires.find(f => f.carriedBy === c);
+        if (myFire) myFire.carriedBy = null;
+      }
+      c.omniRole = null;
+      // Flee awake carnivores (unless desperate — then risk it)
+      if (!omniDesperate && dangerCarn && !dangerCarn.sleeping) {
+        const dx = c.x - dangerCarn.x, dy = c.y - dangerCarn.y;
+        const d = Math.sqrt(dx*dx+dy*dy)+0.001;
+        tx = c.x + (dx/d)*100; ty = c.y + (dy/d)*100;
+        c.status = 'FLEEING CARNIVORE';
+      }
+      // Scavenge corpses (omnis eat all corpses — priority)
+      if (tx === null) {
+        const nc = gridNearest(c.x, c.y, sgCorpses, c.dna.sense, null);
+        if (nc) { tx = nc.x; ty = nc.y; c.packTarget = null; c.status = 'SCAVENGING'; }
+      }
+      // TOOL USE: high-aggression omnivores with carnivore kills hunt sleeping carnivores
+      const isAggHunter = c.dna.aggression >= 0.6 && (c.memHuntWins['carnivore'] || 0) >= 1;
+      if (tx === null && isAggHunter) {
+        const sleepingCarn = gridNearest(c.x, c.y, sgCreatures, c.dna.sense * 1.6,
+          o => o !== c && o.alive && o.dna.type === 'carnivore' && o.sleeping);
+        if (sleepingCarn) { tx = sleepingCarn.x; ty = sleepingCarn.y; c.packTarget = sleepingCarn; c.status = 'HUNTING (TOOL USE)'; }
+      }
+
+      // BLOOD MOON: omnivores attack any weak herbivore (<20% energy)
+      if (tx === null && bloodMoon) {
+        const weakHerb = gridNearest(c.x, c.y, sgCreatures, c.dna.sense * 1.4,
+          o => o !== c && o.alive && o.dna.type === 'herbivore' && o.energy < 60);
+        if (weakHerb) { tx = weakHerb.x; ty = weakHerb.y; c.packTarget = weakHerb; c.status = 'BLOOD HUNT'; }
+      }
+      // DESPERATE: hunt herbivores to kill for corpse
+      if (tx === null && omniDesperate) {
+        const prey = gridNearest(c.x, c.y, sgCreatures, c.dna.sense * 1.2,
+          o => o !== c && o.alive && o.dna.type === 'herbivore');
+        if (prey) { tx = prey.x; ty = prey.y; c.packTarget = prey; c.status = 'DESPERATE HUNT'; }
+      }
+      // Eat food like herbivore
+      if (tx === null) {
+        const food = gridNearest(c.x, c.y, sgFoods, c.dna.sense, null);
+        if (food) { tx = food.x; ty = food.y; c.status = 'SEEKING FOOD'; }
+      }
+      // Seek mate if nothing else
+      if (tx === null && mateElig) {
+        const mate = gridNearest(c.x, c.y, sgCreatures, c.dna.sense * 0.5,
+          o => o !== c && o.dna.type === 'omnivore' && o.energy >= MATE_ENERGY
+            && o.matingCooldown === 0 && !o.matingWith && o.mateCount < MAX_MATES);
+        if (mate) { tx = mate.x; ty = mate.y; c.status = 'SEEKING MATE'; }
+      }
+      if (tx === null) { c.status = 'WANDERING'; c.packTarget = null; }
     }
 
   } else {
-    // Carnivore at 90%+ energy: focus on mating, ignore prey
+    // ── CARNIVORE BEHAVIOUR ────────────────────────────────────────────────────
+    const CONE_RANGE  = c.dna.sense * 2.8;
+    const CONE_ARC    = Math.PI / 3;
+
+    c.sprinting = false;
+    const lists = window._simLists || {};
+
+    // Avoid contagious infected agents (carnivores avoid reasonably)
+    {
+      const infAgent = gridNearest(c.x, c.y, sgCreatures, c.dna.sense * 0.8,
+        o => o !== c && o.infectionStacks >= 10);
+      if (infAgent) {
+        const dx = c.x - infAgent.x, dy = c.y - infAgent.y;
+        const d = Math.sqrt(dx*dx+dy*dy)+0.001;
+        c.vx += (dx/d) * 0.3; c.vy += (dy/d) * 0.3;
+      }
+    }
+
+    // Avoid safe omnivores — keep distance unless sleeping, mating, or <20% energy
+    // DESPERATE carnivores (<20% energy) will attack awake omnivores (50/50 outcome resolved in eating block)
+    if (frenziedTicks <= 0 && !carnDesperate) {
+      const safeOmni = gridNearest(c.x, c.y, sgCreatures, c.dna.sense * 0.7,
+        o => o !== c && o.dna.type === 'omnivore' && !o.sleeping && !o.matingWith && o.energy >= 60);
+      if (safeOmni) {
+        const dx = c.x - safeOmni.x, dy = c.y - safeOmni.y;
+        const d = Math.sqrt(dx*dx+dy*dy)+0.001;
+        c.vx += (dx/d) * 0.35; c.vy += (dy/d) * 0.35;
+      }
+    }
+
     if (isSated) {
-      // Seek mate only — no hunting while sated
+      c.status = 'SEEKING MATE';
       if (mateElig) {
-        const mate = findNearest(c,
-          creatures.filter(o => o.alive && o !== c && o.dna.type === 'carnivore' &&
-                                o.energy >= MATE_ENERGY && o.matingCooldown === 0 &&
-                                !o.matingWith && o.mateCount < MAX_MATES),
-          c.dna.sense * 0.8);
+        const mate = gridNearest(c.x, c.y, sgCreatures, c.dna.sense * 0.8,
+          o => o !== c && o.dna.type === 'carnivore' && o.energy >= MATE_ENERGY
+            && o.matingCooldown === 0 && !o.matingWith && o.mateCount < MAX_MATES);
         if (mate) { tx = mate.x; ty = mate.y; }
       }
-      // Wander if no mate found — don't hunt
+      if (tx === null) c.status = 'SATED — WANDERING';
     } else {
-      // Carnivore hungry: prioritise sleeping prey, purple pips, weak carnivores, corpses, herbivores
-      // Sleeping creatures are prime targets — easy, inert prey
-      const sleepingPrey = findNearest(c,
-        creatures.filter(o => o.alive && o.sleeping),
-        c.dna.sense);
-      if (sleepingPrey) { tx = sleepingPrey.x; ty = sleepingPrey.y; }
+      c.status = 'HUNTING';
 
-      if (tx === null) {
-        const purplePrey = findNearest(c,
-          creatures.filter(o => o.alive && o.matingWith !== null),
-          c.dna.sense);
-        if (purplePrey) { tx = purplePrey.x; ty = purplePrey.y; }
+      // Pack hunting coordination
+      let packInterceptX = null, packInterceptY = null;
+      for (const pack of (lists.carns || [])) {
+        if (pack === c || !pack.packTarget) continue;
+        if (dist(c, pack) > c.dna.sense * 1.2) continue;
+        const prey = pack.packTarget;
+        if (!prey.alive) continue;
+        const interceptX = prey.x + prey.vx * 20;
+        const interceptY = prey.y + prey.vy * 20;
+        if (dist(c, prey) > dist(pack, prey)) {
+          packInterceptX = interceptX; packInterceptY = interceptY; break;
+        }
       }
+      if (packInterceptX !== null) { tx = packInterceptX; ty = packInterceptY; c.status = 'PACK FLANKING'; }
 
-      // Cannibalism target: weak young carnivores
+      // Cone prey detection — sleeping first (grid-accelerated)
       if (tx === null) {
-        const weakCarnivore = findNearest(c,
-          creatures.filter(o => o.alive && o !== c && o.dna.type === 'carnivore'
-                                && o.energy < 30 && o.age < c.age * 0.5),
-          c.dna.sense);
-        if (weakCarnivore) { tx = weakCarnivore.x; ty = weakCarnivore.y; }
+        const sp = gridInCone(c.x,c.y,c.vx,c.vy, sgCreatures, CONE_RANGE, CONE_ARC,
+          o => o !== c && o.alive && o.sleeping);
+        if (sp) { tx = sp.x; ty = sp.y; c.packTarget = sp; c.status = 'STALKING'; }
       }
-
-      // Scavenge corpses (easy energy)
+      // Mating prey
       if (tx === null) {
-        const nearCorpse = findNearest(c, corpses, c.dna.sense);
-        if (nearCorpse) { tx = nearCorpse.x; ty = nearCorpse.y; }
+        const pp = gridInCone(c.x,c.y,c.vx,c.vy, sgCreatures, CONE_RANGE, CONE_ARC,
+          o => o !== c && o.alive && o.matingWith !== null);
+        if (pp) { tx = pp.x; ty = pp.y; c.packTarget = pp; c.status = 'HUNTING MATING PREY'; }
       }
-
+      // Cannibalism (weak young carnivore)
       if (tx === null) {
-        const prey = findNearest(c,
-          creatures.filter(o => o.alive && o.dna.type === 'herbivore'),
-          c.dna.sense);
-        if (prey) { tx = prey.x; ty = prey.y; }
+        const wc = gridInCone(c.x,c.y,c.vx,c.vy, sgCreatures, CONE_RANGE, CONE_ARC,
+          o => o !== c && o.alive && o.dna.type === 'carnivore' && o.energy < 30 && o.age < c.age*0.5);
+        if (wc) { tx = wc.x; ty = wc.y; c.packTarget = wc; c.status = 'CANNIBALISING'; }
       }
+      // Vulnerable omnivore: sleeping, mating, or <10% energy; OR any omnivore during FRENZY or when carnivore desperate
+      if (tx === null) {
+        const vo = gridInCone(c.x,c.y,c.vx,c.vy, sgCreatures, CONE_RANGE, CONE_ARC,
+          o => o !== c && o.alive && o.dna.type === 'omnivore'
+            && (frenziedTicks > 0 || carnDesperate || o.sleeping || o.matingWith !== null || o.energy < 30));
+        if (vo) { tx = vo.x; ty = vo.y; c.packTarget = vo; c.status = frenziedTicks > 0 ? 'FRENZIED HUNT' : carnDesperate ? 'DESPERATE ATTACK' : 'HUNTING OMNIVORE'; }
+      }
+      // Corpses (omnidirectional smell)
+      if (tx === null) {
+        const nc = gridNearest(c.x, c.y, sgCorpses, c.dna.sense, null);
+        if (nc) { tx = nc.x; ty = nc.y; c.packTarget = null; c.status = 'SCAVENGING'; }
+      }
+      // Herbivores in cone — grid-accelerated + scored by hunt memory
+      if (tx === null) {
+        const rawCands = sgCreatures ? sgCreatures.query(c.x, c.y, CONE_RANGE) : [];
+        const heading = Math.atan2(c.vy, c.vx);
+        const spd = Math.sqrt(c.vx*c.vx+c.vy*c.vy);
+        const useCone = spd > 0.1;
+        const candidates = rawCands.filter(h => {
+          if (!h.alive || h === c || h.dna.type !== 'herbivore') return false;
+          if (!useCone) return true;
+          const dx = h.x-c.x, dy = h.y-c.y;
+          let diff = Math.atan2(dy,dx) - heading;
+          while (diff >  Math.PI) diff -= 2*Math.PI;
+          while (diff < -Math.PI) diff += 2*Math.PI;
+          return Math.abs(diff) <= CONE_ARC;
+        });
+        if (candidates.length > 0) {
+          // Score each by success rate + proximity; experienced hunters chase the right prey
+          let best = null, bestScore = -1;
+          for (const h of candidates) {
+            const rate = huntSuccessRate(c, 'herbivore');
+            const proximity = 1 - dist(c, h) / CONE_RANGE;
+            // Intelligence factor: weight success rate more heavily with age
+            const intFactor = Math.min(1, c.age / 800);
+            const score = proximity * (1 - intFactor) + rate * intFactor * proximity;
+            if (score > bestScore) { bestScore = score; best = h; }
+          }
+          if (best) { tx = best.x; ty = best.y; c.packTarget = best; c.status = 'CHASING'; }
+        }
+      }
+      // Follow pheromone trails when no direct target
+      if (tx === null && (pheroHerb || pheroOmni)) {
+        // Combine herb (full) + omni (60%) gradient signals
+        let gdx = 0, gdy = 0;
+        if (pheroHerb) { const g = pheroGradient(pheroHerb, c.x, c.y); gdx += g.dx; gdy += g.dy; }
+        if (pheroOmni) { const g = pheroGradient(pheroOmni, c.x, c.y); gdx += g.dx * 0.6; gdy += g.dy * 0.6; }
+        const mag = Math.sqrt(gdx*gdx + gdy*gdy);
+        if (mag > 0.03) {
+          c.vx += (gdx/mag) * 0.3; c.vy += (gdy/mag) * 0.3;
+          c.packTarget = null; c.status = 'TRACKING SCENT';
+        } else { c.packTarget = null; c.status = 'PATROLLING'; }
+      } else if (tx === null) { c.packTarget = null; c.status = 'PATROLLING'; }
 
-      // Seek mate when eligible even while not sated (if no prey nearby)
       if (tx === null && mateElig) {
-        const mate = findNearest(c,
-          creatures.filter(o => o.alive && o !== c && o.dna.type === 'carnivore' &&
-                                o.energy >= MATE_ENERGY && o.matingCooldown === 0 &&
-                                !o.matingWith && o.mateCount < MAX_MATES),
-          c.dna.sense * 0.5);
-        if (mate) { tx = mate.x; ty = mate.y; }
+        const mate = gridNearest(c.x, c.y, sgCreatures, c.dna.sense * 0.5,
+          o => o !== c && o.dna.type === 'carnivore' && o.energy >= MATE_ENERGY
+            && o.matingCooldown === 0 && !o.matingWith && o.mateCount < MAX_MATES);
+        if (mate) { tx = mate.x; ty = mate.y; c.status = 'SEEKING MATE'; }
       }
     }
   }
 
+  // Memory-biased wandering: drift toward last known food patch when no other goal
   if (tx !== null) {
     const dx = tx - c.x, dy = ty - c.y;
     const d = Math.sqrt(dx*dx + dy*dy) + 0.001;
     c.vx += (dx/d) * 0.4; c.vy += (dy/d) * 0.4;
+  } else if ((c.dna.type === 'herbivore' || c.dna.type === 'omnivore')
+             && c.memFoodX !== null && c.memFoodAge < 400) {
+    // Bias toward remembered food patch; strength fades with time
+    const memStr = Math.max(0, 1 - c.memFoodAge / 400) * 0.25;
+    const dx = c.memFoodX - c.x, dy = c.memFoodY - c.y;
+    const d = Math.sqrt(dx*dx + dy*dy) + 0.001;
+    c.vx += (dx/d) * memStr; c.vy += (dy/d) * memStr;
+    c.vx += (Math.random()-0.5) * 0.3; c.vy += (Math.random()-0.5) * 0.3;
   } else {
     c.vx += (Math.random()-0.5) * 0.5; c.vy += (Math.random()-0.5) * 0.5;
   }
 
+  // ── FLOCKING (Boids) ────────────────────────────────────────────────────────
+  const flockRadius = c.dna.sense * 0.6;
+  const sepRadius   = c.dna.size * 3.5;
+
+  let sepX = 0, sepY = 0, sepN = 0;
+  let aliX = 0, aliY = 0, aliN = 0;
+  let cohX = 0, cohY = 0, cohN = 0;
+
+  // Use spatial grid — only checks nearby cells instead of all creatures
+  const flockNeighbours = sgCreatures ? sgCreatures.query(c.x, c.y, flockRadius) : [];
+  for (const o of flockNeighbours) {
+    if (o === c || o.sleeping || o.dna.type !== c.dna.type) continue;
+    const dx = o.x - c.x, dy = o.y - c.y;
+    const d2 = dx*dx + dy*dy;
+    const d = Math.sqrt(d2) + 0.001;
+
+    // Separation — push away from very close neighbours
+    if (d < sepRadius) {
+      sepX -= dx / d; sepY -= dy / d;
+      sepN++;
+    }
+    // Alignment — match velocity of neighbours
+    aliX += o.vx; aliY += o.vy; aliN++;
+    // Cohesion — move toward centre of neighbours
+    cohX += o.x; cohY += o.y; cohN++;
+  }
+
+  const fs = params.flockStr / 10;
+  if (c.dna.type === 'herbivore') {
+    // ── Fission-fusion: sociability gene controls grouping threshold ──────────
+    // Threatened + sociable → merge into tight group; food-scarce + sociable → split
+    const threatened = c.status === 'FLEEING' || c.status === 'PANICKING';
+    const foodScarce  = c.energy < 100;
+    // Base flock strength modified by sociability and situation
+    const fusionStr  = threatened ? c.dna.sociability * 1.6 : c.dna.sociability;
+    const fissionStr = foodScarce  ? (1 - c.dna.sociability) * 0.8 : 0;
+    // Desperate herbivore suppresses cohesion — breaks from herd to find food alone
+    const flockActive = c.desperateTicks === 0;
+
+    // Herbivore flocking — safety in numbers
+    if (sepN > 0) { c.vx += (sepX/sepN) * 0.35 * fs; c.vy += (sepY/sepN) * 0.35 * fs; }
+    if (aliN > 0) { c.vx += (aliX/aliN - c.vx) * 0.08 * fs * fusionStr; c.vy += (aliY/aliN - c.vy) * 0.08 * fs * fusionStr; }
+    if (cohN > 0 && flockActive) {
+      const cx = cohX/cohN - c.x, cy = cohY/cohN - c.y;
+      const cd = Math.sqrt(cx*cx+cy*cy)+0.001;
+      const cohStr = Math.max(0, fusionStr - fissionStr);
+      if (tx === null) { c.vx += (cx/cd) * 0.12 * fs * cohStr; c.vy += (cy/cd) * 0.12 * fs * cohStr; }
+    }
+    // Shepherd pull: if a nearby sated omnivore is shepherding, be drawn toward it
+    const lists = window._simLists || {};
+    const shepherd = gridNearest(c.x, c.y, sgCreatures, c.dna.sense * 1.6,
+      o => o !== c && o.dna.type === 'omnivore' && o.alive && o.energy >= 270);
+    if (shepherd) {
+      const sdx = shepherd.x - c.x, sdy = shepherd.y - c.y;
+      const sd  = Math.sqrt(sdx*sdx+sdy*sdy)+0.001;
+      // Don't pull toward shepherd if already mid-flee (shepherd pull irrelevant)
+      if (c.status !== 'FLEEING') {
+        const shepherdPull = fs * 0.22;
+        c.vx += (sdx/sd) * shepherdPull; c.vy += (sdy/sd) * shepherdPull;
+      }
+      // Shepherded herbivores share the omnivore's cone vision range (boosted)
+      c._shepherdRef  = shepherd; // keep reference so we can draw the distinction
+      c._shepherdVision = shepherd.dna.sense * 2.4;
+    } else {
+      c._shepherdVision = null;
+      c._shepherdRef    = null;
+    }
+  } else if (c.dna.type === 'omnivore') {
+    // Omnivores flock loosely with own kind — mild separation only
+    if (sepN > 0) { c.vx += (sepX/sepN) * 0.3 * fs; c.vy += (sepY/sepN) * 0.3 * fs; }
+    if (aliN > 0) { c.vx += (aliX/aliN - c.vx) * 0.05 * fs; c.vy += (aliY/aliN - c.vy) * 0.05 * fs; }
+  } else {
+    // Carnivores spread out
+    if (sepN > 0) { c.vx += (sepX/sepN) * 0.5 * fs; c.vy += (sepY/sepN) * 0.5 * fs; }
+    if (aliN > 0) { c.vx += (aliX/aliN - c.vx) * 0.04 * fs; c.vy += (aliY/aliN - c.vy) * 0.04 * fs; }
+  }
+
+  // Sprint: carnivores/omnivores chasing prey burn ENERGY for speed boost
+  // stamina gene = efficiency multiplier; low stamina = more energy per sprint tick
+  let maxSpd = c.dna.speed;
+  const canSprint = (c.dna.type === 'carnivore' || c.dna.type === 'omnivore')
+                    && tx !== null && c.energy > 75  // need >25% energy to sprint
+                    && (c.status === 'CHASING' || c.status === 'STALKING'
+                        || c.status === 'PACK FLANKING' || c.status === 'HUNTING MATING PREY'
+                        || c.status === 'CANNIBALISING');
+  if (canSprint) {
+    maxSpd = c.dna.speed * 1.6;
+    // Energy cost: base 0.08 per tick, divided by stamina gene (0.1–1.0)
+    // Low stamina = more expensive sprint; high stamina = efficient
+    const sprintCost = 0.08 / Math.max(0.1, c.dna.stamina);
+    c.energy -= sprintCost;
+    c.sprinting = true;
+  }
+
+  // Night debuff for carnivores: speed and sense reduced
+  const nightCarnDebuff = (window._isNight && c.dna.type === 'carnivore') ? (window._nightCarnDebuff || 0.72) : 1.0;
+  // Flee burst multiplier for herbivores
+  const fleeMult = (c.dna.type === 'herbivore' && c.fleeBursting > 0) ? 2.5 : 1.0;
+  const effectiveMaxSpd = maxSpd * nightCarnDebuff * fleeMult;
   const spd = Math.sqrt(c.vx*c.vx + c.vy*c.vy);
-  if (spd > c.dna.speed) { c.vx = (c.vx/spd)*c.dna.speed; c.vy = (c.vy/spd)*c.dna.speed; }
+  if (spd > effectiveMaxSpd) { c.vx = (c.vx/spd)*effectiveMaxSpd; c.vy = (c.vy/spd)*effectiveMaxSpd; }
   c.x += c.vx; c.y += c.vy;
   if (c.x < 0) c.x += W; if (c.x > W) c.x -= W;
   if (c.y < 0) c.y += H; if (c.y > H) c.y -= H;
 
-  // Herbivores eat food only when below sated threshold
-  if (c.dna.type === 'herbivore' && !isSated) {
+  // Herbivores and omnivores eat food when below sated threshold and not eat-blocked
+  if ((c.dna.type === 'herbivore' || c.dna.type === 'omnivore') && !isSated && c.eatBlock === 0) {
     for (let i = foods.length - 1; i >= 0; i--) {
       if (dist(c, foods[i]) < c.dna.size + 4) {
-        c.energy += foods[i].energy;
+        if (foods[i].toxic) {
+          // Toxic food: heavy drain + becomes toxic + eat block
+          c.energy -= foods[i].energy * 1.4;
+          c.toxic = true;
+          c.toxicTicks = 600 + Math.floor(Math.random() * 400); // 10-17s at 60fps
+          c.eatBlock = Math.floor(300 + Math.random() * 300);   // 5-10s blocked
+        } else {
+          c.energy += foods[i].energy;
+        }
+        c.memFoodX = foods[i].x; c.memFoodY = foods[i].y; c.memFoodAge = 0;
         foods.splice(i, 1);
         break;
+      }
+    }
+  }
+  // Age memory each tick
+  if (c.memFoodX !== null) c.memFoodAge++;
+  // Omnivores scavenge corpses (all types) — toxic corpses spread toxicity
+  if (c.dna.type === 'omnivore' && !isSated && c.eatBlock === 0) {
+    for (let i = corpses.length - 1; i >= 0; i--) {
+      if (dist(c, corpses[i]) < c.dna.size + 5) {
+        if (corpses[i].toxic) {
+          c.energy -= corpses[i].energy * 0.5;
+          c.toxic = true;
+          c.toxicTicks = 500 + Math.floor(Math.random() * 300);
+          c.eatBlock = Math.floor(240 + Math.random() * 240);
+        } else {
+          c.energy += corpses[i].energy;
+        }
+        corpses.splice(i, 1);
+        break;
+      }
+    }
+  }
+
+  // Desperate omnivore: kill nearby herbivore, trigger panic in witnesses
+  if (c.dna.type === 'omnivore' && (c.status === 'DESPERATE HUNT' || c.status === 'BLOOD HUNT') && c.packTarget && c.packTarget.alive) {
+    const prey = c.packTarget;
+    if (dist(c, prey) < c.dna.size + prey.dna.size + 2) {
+      // Kill herbivore, make corpse
+      const wasAt = { x: prey.x, y: prey.y };
+      prey._killedByCarnivore = true; // killed by another creature (omnivore counts as predation)
+      if (prey.dna.type === 'herbivore') deathStats.herb++;
+      else if (prey.dna.type === 'carnivore') deathStats.carn++;
+      else deathStats.omni++;
+      deathStats.byCarnivore++;
+      prey.alive = false;
+      const newCorpse = { x: prey.x, y: prey.y, energy: prey.energy * 0.5 + 10, decay: 0,
+                          fromType: prey.dna.type, toxic: c.toxic };
+      corpses.push(newCorpse);
+      // If omnivore killed a carnivore (tool use), update hunt wins and champion check
+      if (prey.dna.type === 'carnivore') {
+        c.memHuntWins['carnivore'] = (c.memHuntWins['carnivore'] || 0) + 1;
+        c.carnKills = (c.carnKills || 0) + 1;
+        omnivoreKillCarnivore(c);
+      }
+      if (pheroCarn) depositPhero(pheroCarn, prey.x, prey.y, 0.7);
+      c.packTarget = null;
+      // Panic: all herbivores within sense range that witness the kill flee
+      const nearHerbs = sgCreatures ? sgCreatures.query(wasAt.x, wasAt.y, c.dna.sense * 1.4) : [];
+      for (const h of nearHerbs) {
+        if (h.alive && h.dna.type === 'herbivore') {
+          h.panicTicks = 180 + Math.floor(Math.random() * 120);
+          h.sleeping = false; h.sleepTicks = 0;
+          const ang = Math.atan2(h.y - wasAt.y, h.x - wasAt.x);
+          h.vx = Math.cos(ang) * h.dna.speed * 2; h.vy = Math.sin(ang) * h.dna.speed * 2;
+        }
       }
     }
   }
 
   // Carnivores hunt ONLY when below sated threshold (90%)
   if (c.dna.type === 'carnivore' && !isSated) {
+    if (c.packTarget && c.packTarget.alive && c.age % 60 === 0) {
+      const pKey = c.packTarget.dna.type + (c.packTarget.sleeping ? '_sleep' : c.packTarget.matingWith ? '_mating' : '');
+      c.memHuntAttempts[pKey] = (c.memHuntAttempts[pKey] || 0) + 1;
+    }
     let ate = false;
     for (const prey of creatures) {
       if (!prey.alive || prey === c) continue;
-      const isPurple    = prey.matingWith !== null;
-      const isHerbivore = prey.dna.type === 'herbivore';
-      const isSleeping  = prey.sleeping;
-      // Can eat: purple/mating prey, herbivores, sleeping creatures
-      // Cannibalism: eat carnivore only if it's <10% energy AND age < half attacker age
-      const isWeakCarnivore = prey.dna.type === 'carnivore'
-                              && prey.energy < 30          // <10% of 300
-                              && prey.age < c.age * 0.5;   // less than half attacker's age
-      const edible = isPurple || isHerbivore || isSleeping || isWeakCarnivore;
+      const isPurple        = prey.matingWith !== null;
+      const isHerbivore     = prey.dna.type === 'herbivore';
+      const isSleeping      = prey.sleeping;
+      const isWeakCarnivore = prey.dna.type === 'carnivore' && prey.energy < 30 && prey.age < c.age * 0.5;
+      // Desperate carnivore can attack any omnivore — 50/50 resolved below
+      const isVulnOmnivore  = prey.dna.type === 'omnivore'
+                              && (frenziedTicks > 0 || carnDesperate || prey.sleeping || prey.matingWith !== null || prey.energy < 30);
+      const edible = isPurple || isHerbivore || (isSleeping && prey !== c) || isWeakCarnivore || isVulnOmnivore;
       if (edible && dist(c, prey) < c.dna.size + prey.dna.size) {
-        c.energy += prey.energy * 0.6;
-        if (prey.matingWith) { prey.matingWith.matingWith = null; prey.matingWith.matingTicks = 0; }
-        // Wake nearby sleepers if this prey was asleep
-        if (prey.sleeping) {
-          for (const neighbour of creatures) {
-            if (neighbour !== prey && neighbour.sleeping && dist(neighbour, prey) < neighbour.dna.sense) {
-              neighbour.sleeping = false;
-              neighbour.sleepTicks = 0;
-              neighbour.sleepCooldown = 400 + Math.floor(Math.random() * 300);
-              // Scatter in random direction at high speed
-              const ang = Math.random() * Math.PI * 2;
-              neighbour.vx = Math.cos(ang) * neighbour.dna.speed * 2;
-              neighbour.vy = Math.sin(ang) * neighbour.dna.speed * 2;
-              neighbour.wakeScatter = 60;
-            }
+        // Desperate carnivore vs awake omnivore: 50/50 — omnivore might win
+        const desperateVsAwakeOmni = carnDesperate && prey.dna.type === 'omnivore'
+                                     && !prey.sleeping && !prey.matingWith && prey.energy >= 30
+                                     && frenziedTicks <= 0;
+        if (desperateVsAwakeOmni) {
+          if (Math.random() < 0.5) {
+            // Omnivore wins — kills carnivore, gains heritable stat boost
+            c._killedByCarnivore = false; // killed by omnivore
+            deathStats.carn++;
+            deathStats.byCarnivore++;
+            c.alive = false;
+            corpses.push({ x: c.x, y: c.y, energy: c.energy * 0.5, decay: 0,
+                           fromType: 'carnivore', toxic: c.toxic });
+            prey.dna.aggression = Math.min(1.0, prey.dna.aggression + 0.015);
+            prey.dna.fertility  = Math.min(0.01, prey.dna.fertility + 0.00008);
+            prey.dna.size       = Math.min(12,   prey.dna.size      + 0.05);
+            prey.energy         = Math.min(maxEnergy(prey), prey.energy + c.energy * 0.4);
+            prey.carnKills      = (prey.carnKills || 0) + 1;
+            omnivoreKillCarnivore(prey); // champion check
+            break;
           }
         }
-        prey.alive = false;
-        ate = true;
+        if (!c.alive) break;
+        if (prey.toxic) {
+          c.toxic = true;
+          c.toxicTicks = 400 + Math.floor(Math.random() * 200);
+          c.eatBlock   = Math.floor(180 + Math.random() * 180);
+        }
+        // ── BITE SYSTEM: drain energy from prey, take 40%; kill blow = 100% ──
+        const BITE_DAMAGE = Math.max(8, c.dna.size * 4); // bigger = harder bite
+        const preyWouldDie = (prey.energy - BITE_DAMAGE) <= 0;
+        if (preyWouldDie) {
+          // Killing blow — carnivore takes full remaining energy
+          c.energy = Math.min(maxEnergy(c), c.energy + prey.energy);
+          if (prey.matingWith) { prey.matingWith.matingWith = null; prey.matingWith.matingTicks = 0; }
+          if (prey.sleeping) {
+            for (const neighbour of creatures) {
+              if (neighbour !== prey && neighbour.sleeping && dist(neighbour, prey) < neighbour.dna.sense) {
+                neighbour.sleeping = false; neighbour.sleepTicks = 0;
+                neighbour.sleepCooldown = 400 + Math.floor(Math.random() * 300);
+                const ang = Math.random() * Math.PI * 2;
+                neighbour.vx = Math.cos(ang) * neighbour.dna.speed * 2;
+                neighbour.vy = Math.sin(ang) * neighbour.dna.speed * 2;
+                neighbour.wakeScatter = 60;
+              }
+            }
+          }
+          const pKey = prey.dna.type + (prey.sleeping ? '_sleep' : prey.matingWith ? '_mating' : '');
+          c.memHuntWins[pKey]     = (c.memHuntWins[pKey]     || 0) + 1;
+          c.memHuntAttempts[pKey] = (c.memHuntAttempts[pKey] || 0) + 1;
+          prey._killedByCarnivore = true;
+          if (prey.dna.type === 'herbivore') deathStats.herb++;
+          else if (prey.dna.type === 'carnivore') deathStats.carn++;
+          else deathStats.omni++;
+          deathStats.byCarnivore++;
+          corpses.push({ x: prey.x, y: prey.y, energy: 0, decay: 580, fromType: prey.dna.type, toxic: prey.toxic });
+          prey.alive = false;
+          ate = true;
+        } else {
+          // Non-lethal bite — drain energy, carnivore takes 40%
+          prey.energy  -= BITE_DAMAGE;
+          c.energy      = Math.min(maxEnergy(c), c.energy + BITE_DAMAGE * 0.4);
+          // Wake prey if sleeping
+          if (prey.sleeping) {
+            prey.sleeping = false; prey.sleepTicks = 0;
+            prey.sleepCooldown = 300 + Math.floor(Math.random() * 200);
+            const ang = Math.atan2(prey.y - c.y, prey.x - c.x);
+            prey.vx = Math.cos(ang) * prey.dna.speed * 2.5;
+            prey.vy = Math.sin(ang) * prey.dna.speed * 2.5;
+            prey.wakeScatter = 80;
+          }
+          ate = true; // counted as a hit (prevents scavenging this tick)
+        }
         break;
       }
     }
-    // Also scavenge nearby corpses
-    if (!ate) {
+    // Scavenge nearby corpses — spread toxicity
+    if (!ate && c.eatBlock === 0) {
       for (let i = corpses.length - 1; i >= 0; i--) {
         if (dist(c, corpses[i]) < c.dna.size + 5) {
-          c.energy += corpses[i].energy;
+          if (corpses[i].toxic) {
+            c.toxic = true;
+            c.toxicTicks = 400 + Math.floor(Math.random() * 200);
+            c.eatBlock   = Math.floor(180 + Math.random() * 180);
+            c.energy -= corpses[i].energy * 0.3;
+          } else {
+            c.energy += corpses[i].energy;
+          }
           corpses.splice(i, 1);
           break;
         }
@@ -697,30 +2219,202 @@ function updateCreature(c) {
     }
   }
 
-  // Initiate mating — requires 80%+ energy, under 3 prior matings, both partners eligible, not sleeping
+  // Initiate mating — requires 80%+ energy, under retirement limit, not sleeping
   if (mateElig && !c.sleeping && c.wakeScatter === 0) {
-    for (const other of creatures) {
-      if (!other.alive || other === c || other.dna.type !== c.dna.type) continue;
-      if (other.matingWith || other.matingCooldown > 0 || other.mateCount >= MAX_MATES) continue;
-      if (other.energy < MATE_ENERGY) continue;
+    const lists = window._simLists || {};
+    const sameType = (c.dna.type === 'herbivore' ? lists.herbs
+                    : c.dna.type === 'carnivore' ? lists.carns
+                    : lists.omnis) || [];
+    for (const other of sameType) {
+      if (other === c || other.matingWith || other.matingCooldown > 0) continue;
+      const otherMax = other.dna.type === 'herbivore' ? 3 : 5;
+      if (other.mateCount >= otherMax || other.energy < MATE_ENERGY) continue;
       if (dist(c, other) < c.dna.size + other.dna.size + 5) {
-        c.matingWith     = other; c.matingTicks = 0;
-        other.matingWith = c;     other.matingTicks = 0;
+        c.matingWith = other; c.matingTicks = 0;
+        other.matingWith = c; other.matingTicks = 0;
         break;
       }
     }
   }
 
-  c.energy = Math.min(c.energy, 300);
+  // ── Mating stuck detection ────────────────────────────────────────────────
+  // If seeking a mate, track energy and ticks. Cancel if 20% energy lost seeking.
+  if (c.status === 'SEEKING MATE' && !c.matingWith) {
+    if (c.mateSeekTicks === 0) {
+      c.mateEnergyStart = c.energy; // snapshot when we start seeking
+    }
+    c.mateSeekTicks++;
+    const energyLost = c.mateEnergyStart - c.energy;
+    if (energyLost >= maxEnergy(c) * 0.20 || c.mateSeekTicks > 600) {
+      // Give up — impose 5–10s cooldown so they don't immediately try again
+      c.matingCooldown = 300 + Math.floor(Math.random() * 300);
+      c.mateSeekTicks  = 0;
+      c.mateEnergyStart = 0;
+    }
+  } else if (c.status !== 'SEEKING MATE') {
+    c.mateSeekTicks = 0;
+  }
+
+  c.energy = Math.min(c.energy, maxEnergy(c));
 }
 
 function updateSim() {
   tick++;
 
-  // Food grows by spreading from existing food — no random teleport spawning
+  // ── Day/Night cycle ─────────────────────────────────────────────────────────
+  dayTick++;
+  const cycleLen = isNight ? NIGHT_LENGTH : DAY_LENGTH;
+  if (dayTick >= cycleLen) {
+    dayTick = 0;
+    isNight = !isNight;
+    if (isNight) {
+      const isBloodMoon = Math.random() < 0.1;
+      window._bloodMoon = isBloodMoon;
+      if (isBloodMoon) {
+        showWeatherBanner('🌕 BLOOD MOON', '#ff2222', 200,
+          'Carnivores frenzied. Herbivores breed wildly. Omnivores hunt the weak.');
+      } else {
+        showWeatherBanner('🌙 NIGHT FALLS', '#6060cc', 80, 'Fertility rises. Carnivores slow. Energy costs ease.');
+      }
+    } else {
+      window._bloodMoon = false;
+      showWeatherBanner('☀ DAWN BREAKS', '#ffcc44', 80, 'Food grows faster. Activity peaks.');
+    }
+  }
+  // Tick forced blood moon down
+  if (window._bloodMoonForced > 0) {
+    window._bloodMoonForced--;
+    if (window._bloodMoonForced === 0) {
+      window._bloodMoon = false;
+      isNight = false; dayTick = 0;
+      showWeatherBanner('☀ BLOOD MOON ENDS', '#ffcc44', 80, 'Dawn breaks at last.');
+      const btn = document.getElementById('bloodMoonBtn');
+      if (btn) btn.classList.remove('active-event');
+    }
+  }
+  const bloodMoon = !!(window._bloodMoon && isNight);
+  window._isNight = isNight;
+  window._nightFertMult   = bloodMoon ? 4.0 : (isNight ? 1.5 : 1.0);
+  window._nightFoodMult   = isNight ? 0.6 : 1.4;
+  window._nightCarnDebuff = (isNight && !bloodMoon) ? 0.72 : 1.0;
+  // Blood moon: keep carnivores frenzied throughout
+  if (bloodMoon && frenziedTicks <= 0) frenziedTicks = 200;
+
+  // ── Infection spread from plague zones ───────────────────────────────────
+  for (let pz = plagueZones.length - 1; pz >= 0; pz--) {
+    const zone = plagueZones[pz];
+    zone.ticksLeft--;
+    if (zone.ticksLeft <= 0) { plagueZones.splice(pz, 1); continue; }
+    // Every 20 ticks, infect creatures in zone
+    if (tick % 20 === 0) {
+      const inZone = sgCreatures ? sgCreatures.query(zone.x, zone.y, zone.r) : [];
+      for (const c of inZone) {
+        if (!c.alive || c.infStackCooldown > 0) continue;
+        c.infectionStacks = Math.min(15, c.infectionStacks + 1);
+        c.infStackCooldown = 90; // 1.5s cooldown between stack gains
+        if (c.infectionStacks >= 15) {
+          c.alive = false;
+          corpses.push({ x: c.x, y: c.y, energy: 10, decay: 0, fromType: c.dna.type, toxic: false });
+        }
+      }
+    }
+  }
+  // Contagious creatures (≥10 stacks) spread to nearby agents every 120 ticks
+  if (tick % 120 === 0) {
+    for (const c of creatures) {
+      if (!c.alive || c.infectionStacks < 10) continue;
+      const nearby = sgCreatures ? sgCreatures.query(c.x, c.y, 60) : [];
+      for (const other of nearby) {
+        if (other === c || !other.alive || other.infStackCooldown > 0) continue;
+        other.infectionStacks = Math.min(15, other.infectionStacks + 1);
+        other.infStackCooldown = 90;
+        if (other.infectionStacks >= 15) {
+          other.alive = false;
+          corpses.push({ x: other.x, y: other.y, energy: 10, decay: 0, fromType: other.dna.type, toxic: false });
+        }
+      }
+    }
+  }
+
+  // ── Seasons ──────────────────────────────────────────────────────────────────
+  if (longWinterActive) {
+    longWinterTicks--;
+    if (longWinterTicks <= 0) {
+      longWinterActive = false;
+      showWeatherBanner('❄️ LONG WINTER ENDS', '#a0b4f0', 120, 'The thaw has finally come.');
+      document.getElementById('longWinterBtn').classList.remove('active-event');
+    }
+  } else {
+    seasonTick++;
+    if (seasonTick >= SEASON_LENGTH) {
+      seasonTick = 0;
+      currentSeasonIdx = (currentSeasonIdx + 1) % 4;
+      const ns = SEASONS[currentSeasonIdx];
+      const seasonDescs = {
+        SPRING: 'Food blooms. Population surges incoming.',
+        SUMMER: 'Balanced conditions. The ecosystem breathes.',
+        AUTUMN: 'Food slows. Prepare for harder times.',
+        WINTER: 'Scarce food. High drain. Only the strong endure.',
+      };
+      showWeatherBanner(ns.emoji + ' ' + ns.name, ns.color, 180, seasonDescs[ns.name]);
+    }
+  }
+
+  // ── Weather events ─────────────────────────────────────────────────────────
+  if (activeWeather) {
+    activeWeather.ticksLeft--;
+    if (activeWeather.ticksLeft <= 0) {
+      const endedName = activeWeather.event.name;
+      activeWeather = null;
+      toxicRainActive = false;
+      weatherCooldown = 600 + Math.floor(Math.random() * 800);
+      showWeatherBanner('EVENT ENDED', '#8899bb', 80, endedName + ' HAS PASSED');
+      updateDeusWeatherButtons();
+    }
+  } else if (randomWeatherEnabled) {
+    if (weatherCooldown > 0) { weatherCooldown--; }
+    else {
+      // Only trigger certain events in matching seasons
+      const ev = WEATHER_EVENTS[Math.floor(Math.random() * WEATHER_EVENTS.length)];
+      const s = SEASONS[currentSeasonIdx].name;
+      const valid = (ev.name === 'BLIZZARD' && (s === 'WINTER' || s === 'AUTUMN'))
+                 || (ev.name === 'DROUGHT'  && (s === 'SUMMER' || s === 'AUTUMN'))
+                 || (ev.name === 'FEEDING FRENZY' && (s === 'SPRING' || s === 'SUMMER'))
+                 || (ev.name === 'PLAGUE WIND')
+                 || (ev.name === 'TOXIC RAIN');
+      if (valid) {
+        activeWeather = { event: ev, ticksLeft: ev.duration };
+        toxicRainActive = ev.name === 'TOXIC RAIN';
+        showWeatherBanner(ev.emoji + ' ' + ev.name, ev.color, ev.duration, ev.desc);
+        updateDeusWeatherButtons();
+      } else {
+        weatherCooldown = 200; // retry soon
+      }
+    }
+  }
+
+  // ── Frenzy tick ───────────────────────────────────────────────────────────
+  if (frenziedTicks > 0) {
+    frenziedTicks--;
+    if (frenziedTicks === 0) {
+      showWeatherBanner('🩸 FRENZY ENDS', '#ff4d6d', 60, 'Carnivores return to normal behaviour.');
+      document.getElementById('frenzyCBtn').classList.remove('active-event');
+    }
+  }
+
+  // Effective multipliers = season * weather (if active)
+  const season = getCurrentSeason();
+  const weatherFoodMult = activeWeather ? activeWeather.event.foodMult : 1.0;
+  const weatherMetaMult = activeWeather ? activeWeather.event.metaMult : 1.0;
+  const effectiveFoodMult = season.foodMult * weatherFoodMult;
+  const effectiveMetaMult = season.metaMult * weatherMetaMult;
+  // Store on window so creature update can access
+  window._seasonMetaMult = effectiveMetaMult;
+
+  // Food grows by spreading — boosted by day, reduced at night
+  const dayFoodMult = window._nightFoodMult || 1.0;
   if (foods.length < params.maxFood && foods.length > 0) {
-    // Each tick, each food pellet has a small chance to sprout a neighbour nearby
-    const growthChance = params.foodRate * 0.0003; // slider controls spread speed
+    const growthChance = params.foodRate * 0.0003 * effectiveFoodMult * dayFoodMult;
     for (let i = 0; i < foods.length && foods.length < params.maxFood; i++) {
       if (Math.random() < growthChance) {
         const parent = foods[i];
@@ -729,43 +2423,366 @@ function updateSim() {
         const r = 10 + Math.random() * 50;
         const nx = parent.x + Math.cos(angle) * r;
         const ny = parent.y + Math.sin(angle) * r;
-        // Only sprout if within canvas bounds
+        // Only sprout if within canvas bounds and not in a crater
         if (nx > 0 && nx < canvas.width && ny > 0 && ny < canvas.height) {
-          foods.push(createFood(nx, ny));
+          const inCrater = craters.some(cr => {
+            const dx = nx - cr.x, dy = ny - cr.y;
+            return dx*dx + dy*dy < cr.r * cr.r;
+          });
+          if (!inCrater) foods.push(createFood(nx, ny, toxicRainActive));
         }
       }
     }
   }
 
+  // Seeds disperse food based on foodRate, then expire
+  for (let i = seeds.length - 1; i >= 0; i--) {
+    const s = seeds[i];
+    s.age++;
+    if (foods.length < params.maxFood) {
+      // Use the same growth chance as normal food spread, but slightly boosted
+      const seedChance = params.foodRate * 0.0005 * effectiveFoodMult;
+      if (Math.random() < seedChance) {
+        const angle = Math.random() * Math.PI * 2;
+        const r = 8 + Math.random() * 60;
+        const nx = s.x + Math.cos(angle) * r;
+        const ny = s.y + Math.sin(angle) * r;
+        if (nx > 0 && nx < canvas.width && ny > 0 && ny < canvas.height) {
+          const inCrater = craters.some(cr => {
+            const dx = nx - cr.x, dy = ny - cr.y;
+            return dx*dx + dy*dy < cr.r * cr.r;
+          });
+          if (!inCrater) { foods.push(createFood(nx, ny, toxicRainActive)); s.spawned++; }
+        }
+      }
+    }
+    if (s.spawned >= s.budget) seeds.splice(i, 1);
+  }
+
+  // Deposit pheromones — alive, non-sleeping agents leave scent trails
+  if (pheroHerb && pheroCarn) {
+    for (const c of creatures) {
+      if (!c.alive || c.sleeping) continue;
+      if (c.dna.type === 'herbivore') depositPhero(pheroHerb, c.x, c.y, 0.18);
+      else if (c.dna.type === 'carnivore') depositPhero(pheroCarn, c.x, c.y, 0.18);
+      // Omnivores deposit on their own channel — distinct cyan, carnivores can still track
+      else if (c.dna.type === 'omnivore') depositPhero(pheroOmni, c.x, c.y, 0.18);
+    }
+    // Diffuse only every 3 ticks — evaporation is slow enough that this is imperceptible
+    if (tick % 3 === 0) {
+      updatePhero(pheroHerb);
+      updatePhero(pheroCarn);
+      updatePhero(pheroOmni);
+    }
+    pheroNeedsRedraw = true; // deposits happened, mark dirty
+  }
+
+  // Pre-build filtered lists once per tick for performance
+  const _alive      = creatures.filter(c => c.alive);
+  const _herbs      = _alive.filter(c => c.dna.type === 'herbivore');
+  const _carns      = _alive.filter(c => c.dna.type === 'carnivore');
+  const _omnis      = _alive.filter(c => c.dna.type === 'omnivore');
+  const _mating     = _alive.filter(c => c.matingWith !== null);
+  const _sleeping   = _alive.filter(c => c.sleeping);
+  window._simLists  = { alive: _alive, herbs: _herbs, carns: _carns, omnis: _omnis, mating: _mating, sleeping: _sleeping };
+
+  // ── Meteors ───────────────────────────────────────────────────────────────
+  for (let mi = meteors.length - 1; mi >= 0; mi--) {
+    const m = meteors[mi];
+    m.countdown--;
+    if (m.countdown <= 0) {
+      // IMPACT — kill creatures in radius, remove food, leave crater
+      for (const c of creatures) {
+        if (!c.alive) continue;
+        const dx = c.x - m.x, dy = c.y - m.y;
+        if (dx*dx + dy*dy < METEOR_RADIUS * METEOR_RADIUS) {
+          c.alive = false;
+          corpses.push({ x: c.x, y: c.y, energy: 0, decay: 0, fromType: c.dna.type });
+        }
+      }
+      // Remove food in blast zone
+      foods = foods.filter(f => {
+        const dx = f.x - m.x, dy = f.y - m.y;
+        return dx*dx + dy*dy >= METEOR_RADIUS * METEOR_RADIUS;
+      });
+      // Add crater
+      craters.push({ x: m.x, y: m.y, r: METEOR_RADIUS, age: 0 });
+      meteors.splice(mi, 1);
+    }
+  }
+
+  // Age and expire craters
+  for (let ci = craters.length - 1; ci >= 0; ci--) {
+    craters[ci].age++;
+    if (craters[ci].age > CRATER_DURATION) craters.splice(ci, 1);
+  }
+
+  rebuildGrids();
+
+  // ── Champion cooldown tick ───────────────────────────────────────────────
+  if (championCooldown > 0) championCooldown--;
+
+  // ── Territory heatmap update (every 60 ticks) ────────────────────────────
+  if (tick % 60 === 0) {
+    if (!terrCarn || terrW !== Math.ceil(canvas.width / TERR_CELL) || terrH !== Math.ceil(canvas.height / TERR_CELL)) {
+      terrW    = Math.ceil(canvas.width  / TERR_CELL);
+      terrH    = Math.ceil(canvas.height / TERR_CELL);
+      terrCarn  = new Float32Array(terrW * terrH);
+      terrGraze = new Float32Array(terrW * terrH);
+    }
+    // Decay existing values
+    for (let i = 0; i < terrCarn.length;  i++) terrCarn[i]  *= 0.97;
+    for (let i = 0; i < terrGraze.length; i++) terrGraze[i] *= 0.97;
+    // Deposit creature positions
+    for (const c of creatures) {
+      if (!c.alive) continue;
+      const tx2 = Math.max(0, Math.min(terrW - 1, Math.floor(c.x / TERR_CELL)));
+      const ty2 = Math.max(0, Math.min(terrH - 1, Math.floor(c.y / TERR_CELL)));
+      const idx = ty2 * terrW + tx2;
+      if (c.dna.type === 'carnivore') terrCarn[idx]  += 0.15;
+      else if (c.dna.type === 'herbivore') terrGraze[idx] += 0.08;
+    }
+    // Clamp
+    for (let i = 0; i < terrCarn.length;  i++) terrCarn[i]  = Math.min(1, terrCarn[i]);
+    for (let i = 0; i < terrGraze.length; i++) terrGraze[i] = Math.min(1, terrGraze[i]);
+  }
+
+  // ── Fire management ──────────────────────────────────────────────────────
+  // Natural fire spawn: cluster of 10+ sated omnivores, capped by params.maxFire
+  if (tick % 180 === 0 && fires.length < params.maxFire) {
+    const satedOmnis = creatures.filter(c => c.alive && c.dna.type === 'omnivore' && c.energy >= Math.round(maxEnergy(c) * 0.90));
+    const checked = new Set();
+    for (const o of satedOmnis) {
+      if (fires.length >= params.maxFire) break;
+      if (checked.has(o.id)) continue;
+      const nearby = satedOmnis.filter(o2 => o2 !== o && dist(o, o2) < 80);
+      if (nearby.length >= 9) { // 10 total (o + 9 nearby)
+        const cx2 = nearby.reduce((s, n) => s + n.x, o.x) / (nearby.length + 1);
+        const cy2 = nearby.reduce((s, n) => s + n.y, o.y) / (nearby.length + 1);
+        const tooClose = fires.some(f => dist(f, {x:cx2,y:cy2}) < 100);
+        if (!tooClose) {
+          fires.push({ x: cx2, y: cy2, intensity: 0.2, carriedBy: null, age: 0 });
+        }
+        nearby.forEach(n => checked.add(n.id));
+        checked.add(o.id);
+      }
+    }
+  }
+
+  // Torchbearer cap: 1 per 10 omnivores of same species
+  const omnisBySpecies = {};
+  for (const c of creatures) {
+    if (!c.alive || c.dna.type !== 'omnivore') continue;
+    const sid = c.speciesId || 'default';
+    omnisBySpecies[sid] = (omnisBySpecies[sid] || 0) + 1;
+  }
+  const torchCountBySp = {};
+  for (const c of creatures) {
+    if (!c.alive || c.dna.type !== 'omnivore' || c.omniRole !== 'torchbearer') continue;
+    const sid = c.speciesId || 'default';
+    torchCountBySp[sid] = (torchCountBySp[sid] || 0) + 1;
+  }
+  // Demote excess torchbearers to shepherd
+  for (const c of creatures) {
+    if (!c.alive || c.dna.type !== 'omnivore' || c.omniRole !== 'torchbearer') continue;
+    const sid = c.speciesId || 'default';
+    const cap = Math.max(1, Math.floor((omnisBySpecies[sid] || 0) / 10));
+    if ((torchCountBySp[sid] || 0) > cap) {
+      c.omniRole = null; // reset role — will re-roll next tick
+      torchCountBySp[sid]--;
+      const myF = fires.find(f => f.carriedBy === c);
+      if (myF) myF.carriedBy = null;
+    }
+  }
+  // Update fires
+  for (let fi = fires.length - 1; fi >= 0; fi--) {
+    const f = fires[fi];
+    f.age++;
+    if (f.carriedBy && f.carriedBy.alive) {
+      // Torchbearer carries it — smooth lerp instead of random jitter
+      const targetX = f.carriedBy.x + (Math.random()-0.5)*1.2;
+      const targetY = f.carriedBy.y + (Math.random()-0.5)*1.2;
+      f.x += (targetX - f.x) * 0.18;
+      f.y += (targetY - f.y) * 0.18;
+      f.intensity = Math.min(1.0, f.intensity + 0.02);
+    } else {
+      f.carriedBy = null;
+      // Static fire fades slowly
+      f.intensity -= 0.0003;
+    }
+    if (f.intensity <= 0) { fires.splice(fi, 1); continue; }
+    // Fire repels carnivores + herbivores at night (static); torchbearer fires always repel
+    const isDay = !isNight;
+    if (isNight || f.carriedBy) {
+      const fireRange = f.carriedBy ? 90 : 70;
+      const repelStr  = f.intensity * (f.carriedBy ? 0.5 : 0.35);
+      for (const c of creatures) {
+        if (!c.alive) continue;
+        const d2 = dist(c, f);
+        if (d2 < fireRange && d2 > 1) {
+          const isCarn = c.dna.type === 'carnivore';
+          const isHerb = c.dna.type === 'herbivore';
+          // Carnivores: 80% chance to be repelled each tick — prevents getting stuck
+          if (isHerb || (isCarn && Math.random() < 0.8)) {
+            const dx2 = c.x - f.x, dy2 = c.y - f.y;
+            const dm  = Math.sqrt(dx2*dx2+dy2*dy2)+0.001;
+            c.vx += (dx2/dm) * repelStr; c.vy += (dy2/dm) * repelStr;
+          }
+        }
+      }
+    }
+  }
+
+  // ── Raid detection ───────────────────────────────────────────────────────
+  // Mark raiders: omnivores below 50% energy with 4+ same-species neighbours
+  const RAID_ENERGY_PCT = 0.5;
+  for (const c of creatures) {
+    if (!c.alive || c.dna.type !== 'omnivore') continue;
+    const myMax = maxEnergy(c);
+    const isLowEnergy = c.energy < myMax * RAID_ENERGY_PCT;
+    if (!isLowEnergy && c.raidingWith > 0 && tick - c.raidingWith > 300) {
+      c.raidingWith = 0; // left raid
+    }
+    if (!isLowEnergy) continue;
+    // Count same-species low-energy neighbours
+    const neighbours = sgCreatures ? sgCreatures.query(c.x, c.y, 100) : [];
+    const raidMates = neighbours.filter(o => o !== c && o.alive && o.dna.type === 'omnivore'
+      && o.speciesId === c.speciesId && o.energy < maxEnergy(o) * RAID_ENERGY_PCT);
+    if (raidMates.length >= 4) {
+      c.raidingWith = tick;
+      c.status = 'RAIDING';
+    }
+    // Higher-energy omnivores can join active raids nearby
+    if (c.energy >= myMax * RAID_ENERGY_PCT) {
+      const activeRaider = neighbours.find(o => o !== c && o.alive && o.dna.type === 'omnivore'
+        && o.raidingWith > 0 && tick - o.raidingWith < 300);
+      if (activeRaider) { c.raidingWith = tick; }
+    }
+  }
+  // Apply raid drain (2× metabolism) and gentle herbivore drift-away
+  for (const c of creatures) {
+    if (!c.alive) continue;
+    if (c.dna.type === 'omnivore' && c.raidingWith > 0 && tick - c.raidingWith <= 300) {
+      c.energy -= c.dna.metabolism * 1.0; // extra drain (on top of normal)
+    }
+    // Herbivores drift mildly away from active raids
+    if (c.dna.type === 'herbivore' && !c._shepherdRef) {
+      const nearRaider = sgCreatures ? sgCreatures.query(c.x, c.y, c.dna.sense * 0.8).find(
+        o => o.alive && o.dna.type === 'omnivore' && o.raidingWith > 0 && tick - o.raidingWith <= 300) : null;
+      if (nearRaider) {
+        const dx2 = c.x - nearRaider.x, dy2 = c.y - nearRaider.y;
+        const dm  = Math.sqrt(dx2*dx2+dy2*dy2)+0.001;
+        c.vx += (dx2/dm) * 0.08; c.vy += (dy2/dm) * 0.08;
+      }
+    }
+  }
+
+  // ── Breeder effect: boost nearby omnivore mate sense 3× ─────────────────
+  for (const c of creatures) {
+    if (!c.alive || c.dna.type !== 'omnivore' || c.omniRole !== 'breeder') continue;
+    const shepherdRange = c.dna.sense * 1.6;
+    const nearby = sgCreatures ? sgCreatures.query(c.x, c.y, shepherdRange) : [];
+    for (const o of nearby) {
+      if (o !== c && o.alive && o.dna.type === 'omnivore' && o.status === 'SEEKING MATE') {
+        o._breederBoost = true; // flag for this tick; used in mating initiation
+      }
+    }
+  }
+
+  // ── Tool-use memory: high-aggression omnivores hunt sleeping carnivores ──
+  // Applied as a behaviour override in the next creature update pass
+  // (handled by checking dna.aggression + memHuntWins in creature behaviour)
+
   for (const c of creatures) updateCreature(c);
 
   // Decay corpses over time
-  for (const corp of corpses) corp.decay++;
-  corpses = corpses.filter(corp => corp.decay < 300);
+  for (const corp of corpses) {
+    corp.decay++;
+    // Fresh corpses keep emitting scent — re-deposit each tick, fading with age
+    if (corp.decay % 8 === 0 && corp.decay < 300) {
+      const strength = (1 - corp.decay / 600) * 0.18;
+      if (pheroCarn) depositPhero(pheroCarn, corp.x, corp.y, strength);
+      if (pheroOmni) depositPhero(pheroOmni, corp.x, corp.y, strength * 0.7);
+    }
+  }
+  corpses = corpses.filter(corp => corp.decay < 1200); // extended for visibility
 
   creatures = creatures.filter(c => c.alive || (c.age++ < 60));
 
-  if (creatures.filter(c => c.dna.type === 'herbivore').length > 200)
-    creatures = creatures.filter(c => c.dna.type !== 'herbivore' || Math.random() > 0.1);
-  if (creatures.filter(c => c.dna.type === 'carnivore').length > 60)
-    creatures = creatures.filter(c => c.dna.type !== 'carnivore' || Math.random() > 0.1);
+  // Soft density cap — overcrowding raises metabolism rather than killing randomly
+  // This creates natural pressure without sudden die-offs
+  const hCount = creatures.filter(c => c.alive && c.dna.type === 'herbivore').length;
+  const cCount = creatures.filter(c => c.alive && c.dna.type === 'carnivore').length;
+  const oCount = creatures.filter(c => c.alive && c.dna.type === 'omnivore').length;
+  if (hCount > 150 || cCount > 60 || oCount > 80) {
+    for (const c of creatures) {
+      if (!c.alive) continue;
+      const cnt = c.dna.type === 'herbivore' ? hCount
+                : c.dna.type === 'carnivore' ? cCount : oCount;
+      const cap = c.dna.type === 'herbivore' ? 150
+                : c.dna.type === 'carnivore' ? 60 : 80;
+      if (cnt > cap) {
+        const overRatio = Math.min(1, (cnt - cap) / cap);
+        c.energy -= 0.03 * overRatio; // flat density penalty // extra pressure proportional to overcrowding
+      }
+    }
+  }
+  // Hard failsafe — only kicks in at extreme numbers to prevent memory issues
+  if (creatures.filter(c => c.alive).length > 600)
+    creatures = creatures.filter(c => !c.alive || Math.random() > 0.05);
+
+  if (tick % 300 === 0) updateSpeciesCentroids();
 
   if (tick % 60 === 0) {
     const alive = creatures.filter(c => c.alive);
     history.h.push(alive.filter(c => c.dna.type === 'herbivore').length);
     history.c.push(alive.filter(c => c.dna.type === 'carnivore').length);
+    history.o.push(alive.filter(c => c.dna.type === 'omnivore').length);
     history.f.push(foods.length);
-    if (history.h.length > MAX_HISTORY) { history.h.shift(); history.c.shift(); history.f.shift(); }
+    if (history.h.length > MAX_HISTORY) { history.h.shift(); history.c.shift(); history.o.shift(); history.f.shift(); }
   }
 }
 
 // ── Draw ──────────────────────────────────────────────────────────────────────
-function drawCreature(c) {
+
+// Draw a polygon or circle at cx,cy with radius r
+// sides=0 → circle, sides=4 → diamond, sides=N → regular polygon
+function drawShape(ctx2, cx, cy, r, sides) {
+  ctx2.beginPath();
+  if (sides === 0) {
+    ctx2.arc(cx, cy, r, 0, Math.PI * 2);
+  } else if (sides === 4) {
+    // Diamond (pointed top/bottom)
+    ctx2.moveTo(cx,     cy - r * 1.3);
+    ctx2.lineTo(cx + r, cy);
+    ctx2.lineTo(cx,     cy + r * 1.3);
+    ctx2.lineTo(cx - r, cy);
+    ctx2.closePath();
+  } else {
+    // Regular polygon (hexagon=6, triangle=3, pentagon=5 etc.)
+    for (let i = 0; i < sides; i++) {
+      const angle = (i / sides) * Math.PI * 2 - Math.PI / 2;
+      const px = cx + Math.cos(angle) * r;
+      const py = cy + Math.sin(angle) * r;
+      i === 0 ? ctx2.moveTo(px, py) : ctx2.lineTo(px, py);
+    }
+    ctx2.closePath();
+  }
+}
+
+function drawCreature(c, depthDim) {
   const alive = c.alive;
-  const alpha = alive ? 1.0 : Math.max(0, 1 - (c.age - 3940) / 60);
+  const alpha = alive
+    ? (depthDim ? 0.45 : 1.0)   // sleeping/inactive recede to 45% — visible but background
+    : Math.max(0, 1 - (c.age - 3940) / 60);
   if (alpha <= 0) return;
+  // Viewport culling: skip expensive drawing for off-screen creatures
+  const cullR = c.dna.size * 4 + 12; // generous margin for glow/ring
+  if (c.x + cullR < 0 || c.x - cullR > canvas.width ||
+      c.y + cullR < 0 || c.y - cullR > canvas.height) return;
 
   const isH      = c.dna.type === 'herbivore';
+  const isO      = c.dna.type === 'omnivore';
   const isMating = alive && c.matingWith !== null;
   const r        = c.dna.size;
 
@@ -776,34 +2793,78 @@ function drawCreature(c) {
 
   // Base hue per type: mating=267(purple), herbivore=168(teal), carnivore=348(red)
   const isSleepingDraw = alive && c.sleeping;
-  const hue = isMating ? 267 : isSleepingDraw ? 220 : (isH ? 168 : 348);
+  const hue = isMating ? 267 : isSleepingDraw ? 220 : (isH ? 168 : isO ? 205 : 348);
+  // glowRGB per type for rgba() calls
+  const typeGlowRGB = isH ? '0,245,196' : isO ? '0,170,180' : '255,77,109';
   const baseColor  = alive ? `hsl(${hue},${sat}%,${lit}%)` : '#2a2a3a';
   const glowColor  = alive ? `hsl(${hue},${sat}%,${lit}%)` : '#444';
   // Extract approximate RGB for rgba() glow uses
-  const glowRGB    = alive ? (isMating ? '162,155,254' : (isH ? '0,245,196' : '255,77,109')) : '68,68,68';
-  const trailColor = isMating ? `hsla(267,${sat}%,${lit}%,0.2)` : (isH ? `hsla(168,${sat}%,${lit}%,0.15)` : `hsla(348,${sat}%,${lit}%,0.15)`);
+  const glowRGB    = alive ? (isMating ? '162,155,254' : typeGlowRGB) : '68,68,68';
+  const trailColor = isMating ? `hsla(267,${sat}%,${lit}%,0.2)` : `hsla(${hue},${sat}%,${lit}%,0.15)`;
 
   ctx.save();
   ctx.globalAlpha = alpha;
 
-  // Trail
-  if (alive && c.trail.length > 1) {
-    ctx.beginPath();
-    ctx.moveTo(c.trail[0].x, c.trail[0].y);
-    for (let i = 1; i < c.trail.length; i++) ctx.lineTo(c.trail[i].x, c.trail[i].y);
-    ctx.strokeStyle = trailColor;
-    ctx.lineWidth = 1;
-    ctx.stroke();
+  // Trail — fades from transparent at oldest point to full opacity at head
+  const nearViewport = c.x > -40 && c.x < canvas.width+40 && c.y > -40 && c.y < canvas.height+40;
+  if (alive && c.trail.length > 1 && nearViewport) {
+    const tLen = c.trail.length;
+    for (let i = 1; i < tLen; i++) {
+      const a = c.trail[i - 1];
+      const b = c.trail[i];
+      // Skip wrap-around segments (toroidal world edge crossings)
+      if (Math.abs(b.x - a.x) > canvas.width / 2 || Math.abs(b.y - a.y) > canvas.height / 2) continue;
+      const segAlpha = (i / tLen) * 0.22; // fades to near-zero at tail
+      ctx.strokeStyle = isMating
+        ? `hsla(267,${sat}%,${lit}%,${segAlpha})`
+        : `hsla(${hue},${sat}%,${lit}%,${segAlpha})`;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.stroke();
+    }
   }
 
-  // Sense radius (selected only)
+  // Vision indicator (selected only)
   if (c === selectedCreature && alive) {
-    ctx.beginPath();
-    ctx.arc(c.x, c.y, c.dna.sense, 0, Math.PI * 2);
-    ctx.strokeStyle = `rgba(${glowRGB},0.1)`;
-    ctx.lineWidth = 1;
+    const heading = Math.atan2(c.vy, c.vx);
     ctx.setLineDash([3, 5]);
-    ctx.stroke();
+    if (isH) {
+      // Own sense circle — always shown at agent's actual range
+      ctx.beginPath(); ctx.arc(c.x, c.y, c.dna.sense, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(${glowRGB},0.15)`; ctx.lineWidth = 1; ctx.stroke();
+      // Shepherd-boosted vision — outer ring in omnivore cyan, dashed, translucent
+      if (c._shepherdVision) {
+        ctx.setLineDash([5, 7]);
+        ctx.beginPath(); ctx.arc(c.x, c.y, c._shepherdVision, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(0,220,255,0.22)`;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.setLineDash([3, 5]); // restore for rest of vision block
+      }
+    } else if (isO) {
+      // Omnivore: cone + circle (dual)
+      const coneRange = c.dna.sense * 1.8;
+      ctx.beginPath(); ctx.moveTo(c.x, c.y);
+      ctx.arc(c.x, c.y, coneRange, heading - Math.PI/3, heading + Math.PI/3);
+      ctx.closePath();
+      ctx.strokeStyle = `rgba(${glowRGB},0.12)`; ctx.fillStyle = `rgba(${glowRGB},0.04)`;
+      ctx.lineWidth = 1; ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.arc(c.x, c.y, c.dna.sense * 0.6, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(${glowRGB},0.08)`; ctx.setLineDash([2,6]); ctx.stroke();
+    } else {
+      // Carnivore: cone only
+      const coneRange = c.dna.sense * 1.8;
+      ctx.beginPath(); ctx.moveTo(c.x, c.y);
+      ctx.arc(c.x, c.y, coneRange, heading - Math.PI/3, heading + Math.PI/3);
+      ctx.closePath();
+      ctx.strokeStyle = `rgba(${glowRGB},0.12)`; ctx.fillStyle = `rgba(${glowRGB},0.04)`;
+      ctx.lineWidth = 1; ctx.fill(); ctx.stroke();
+      ctx.setLineDash([2,6]);
+      ctx.beginPath(); ctx.arc(c.x, c.y, c.dna.sense * 0.4, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(${glowRGB},0.07)`; ctx.stroke();
+    }
     ctx.setLineDash([]);
   }
 
@@ -850,10 +2911,11 @@ function drawCreature(c) {
     ctx.stroke();
   }
 
-  // Outer glow
+  // Outer glow — dimmed for sated omnivores so shepherd ring reads clearly
   if (alive) {
+    const glowA = (isO && c.energy >= 270) ? 0.12 : 0.3;
     const g = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, r * 3);
-    g.addColorStop(0, `rgba(${glowRGB},0.3)`);
+    g.addColorStop(0, `rgba(${glowRGB},${glowA})`);
     g.addColorStop(1, `rgba(${glowRGB},0)`);
     ctx.beginPath();
     ctx.arc(c.x, c.y, r * 3, 0, Math.PI * 2);
@@ -861,22 +2923,11 @@ function drawCreature(c) {
     ctx.fill();
   }
 
-  // Body
+  // Body — shape determined by species (colour stays type-based)
+  const sp = c.speciesId ? speciesRegistry[c.speciesId] : null;
+  const bodyShape = sp ? sp.shape : (isH ? 6 : isO ? 0 : 4);
   ctx.beginPath();
-  if (isH) {
-    for (let i = 0; i < 6; i++) {
-      const angle = (i / 6) * Math.PI * 2 - Math.PI / 6;
-      const px = c.x + Math.cos(angle) * r, py = c.y + Math.sin(angle) * r;
-      i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
-    }
-    ctx.closePath();
-  } else {
-    ctx.moveTo(c.x,     c.y - r * 1.3);
-    ctx.lineTo(c.x + r, c.y);
-    ctx.lineTo(c.x,     c.y + r * 1.3);
-    ctx.lineTo(c.x - r, c.y);
-    ctx.closePath();
-  }
+  drawShape(ctx, c.x, c.y, r, bodyShape);
 
   if (alive) {
     ctx.fillStyle = baseColor;
@@ -892,9 +2943,52 @@ function drawCreature(c) {
     ctx.stroke();
   }
 
-  // Direction nub
+
+  // Shepherding indicator ring (omnivore, sated) — drawn AFTER body so it's separate from icon
+  if (alive && isO && c.energy >= 270) {
+    ctx.save();
+    ctx.shadowBlur = 0;
+    ctx.shadowColor = 'transparent';
+
+    // Main transparency knob for the ring (independent of the icon)
+    ctx.globalAlpha = alpha * 0.18;
+
+    const rr = r * 7.0 + Math.sin(tick * 0.05) * 2;
+    ctx.setLineDash([5, 8]);
+    ctx.lineCap = 'round';
+
+    // Dark under-stroke to visually separate it from glow/background
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, rr, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(0,0,0,0.75)';
+    ctx.lineWidth = 2.6;
+    ctx.stroke();
+
+    // Cyan ring on top
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, rr, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(0,220,255,1)';
+    ctx.lineWidth = 1.1;
+    ctx.stroke();
+
+    ctx.setLineDash([]);
+    ctx.restore();
+  }
+
+  // (duplicate shepherd ring removed)
+
+  // Direction nub + sprint streak
   if (alive) {
     const angle = Math.atan2(c.vy, c.vx);
+    if (c.sprinting) {
+      // Orange motion streak behind the carnivore
+      ctx.beginPath();
+      ctx.moveTo(c.x, c.y);
+      ctx.lineTo(c.x - Math.cos(angle) * r * 4, c.y - Math.sin(angle) * r * 4);
+      ctx.strokeStyle = `rgba(255,160,50,${0.3 + (c.dna.stamina ?? 1.0) * 0.4})`;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
     ctx.beginPath();
     ctx.moveTo(c.x, c.y);
     ctx.lineTo(c.x + Math.cos(angle) * r * 1.8, c.y + Math.sin(angle) * r * 1.8);
@@ -907,7 +3001,7 @@ function drawCreature(c) {
   if (alive) {
     const bw = r * 2.5, bh = 2;
     const bx = c.x - bw/2, by = c.y + r + 3;
-    const pct = Math.min(1, c.energy / 200);
+    const pct = Math.min(1, c.energy / 300);
     ctx.fillStyle = 'rgba(0,0,0,0.4)';
     ctx.fillRect(bx, by, bw, bh);
     ctx.fillStyle = isMating ? '#a29bfe'
@@ -916,6 +3010,212 @@ function drawCreature(c) {
     ctx.fillRect(bx, by, bw * pct, bh);
   }
 
+  // Status icons — floating above creature
+  if (alive) {
+    const iconY = c.y - r - 10;
+    ctx.shadowBlur = 0;
+    ctx.font = `${Math.max(8, r * 0.9)}px monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    const ePct = c.energy / 300;
+    if (ePct < 0.20 && !c.sleeping && !isMating) {
+      // Skull warning for critically low energy
+      const pulse2 = 0.5 + 0.5 * Math.sin(tick * 0.2);
+      ctx.globalAlpha = alpha * (0.7 + pulse2 * 0.3);
+      ctx.fillStyle = '#ff4d6d';
+      ctx.fillText('💀', c.x, iconY);
+    } else if (c.sprinting) {
+      ctx.globalAlpha = alpha * 0.9;
+      ctx.fillStyle = '#ffa032';
+      ctx.fillText('⚡', c.x, iconY);
+    } else if (c.status === 'SEEKING MATE' || c.status === 'SATED — WANDERING') {
+      ctx.globalAlpha = alpha * 0.75;
+      ctx.fillText('❤️', c.x, iconY);
+    }
+  }
+
+  // Selected species highlight ring
+  if (alive && selectedSpeciesId && c.speciesId === selectedSpeciesId) {
+    const pulse3 = 0.5 + 0.5 * Math.sin(tick * 0.15);
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, r + 6 + pulse3 * 4, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(255,209,102,${0.55 + pulse3 * 0.35})`;
+    ctx.lineWidth = 2;
+    ctx.shadowColor = 'rgba(255,209,102,0.8)';
+    ctx.shadowBlur = 8;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+  }
+
+  // Champion crown ring
+  if (alive && c.champion) {
+    const pulse4 = 0.5 + 0.5 * Math.sin(tick * 0.1);
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, r + 10 + pulse4 * 4, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(255,215,0,${0.7 + pulse4 * 0.3})`;
+    ctx.lineWidth = 2.5;
+    ctx.shadowColor = 'rgba(255,215,0,1)';
+    ctx.shadowBlur = 12;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.font = `${r + 4}px monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.globalAlpha = alpha * 0.9;
+    ctx.fillText('👑', c.x, c.y - r - 12);
+  }
+
+  // Disciple amber glow
+  if (alive && c.disciple) {
+    const dPulse = 0.5 + 0.5 * Math.sin(tick * 0.14 + c.x * 0.02);
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, r + 6 + dPulse * 3, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(255,170,0,${0.5 + dPulse * 0.3})`;
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 5]);
+    ctx.shadowColor = 'rgba(255,170,0,0.7)';
+    ctx.shadowBlur = 8;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.setLineDash([]);
+    ctx.font = `${r + 2}px monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.globalAlpha = alpha * 0.85;
+    ctx.fillText('⚔', c.x, c.y - r - 8);
+  }
+
+  // Flee burst white streak on herbivores
+  if (alive && c.dna.type === 'herbivore' && c.fleeBursting > 0) {
+    const ang = Math.atan2(c.vy, c.vx);
+    ctx.beginPath();
+    ctx.moveTo(c.x, c.y);
+    ctx.lineTo(c.x - Math.cos(ang) * r * 5, c.y - Math.sin(ang) * r * 5);
+    const streakG = ctx.createLinearGradient(c.x, c.y, c.x - Math.cos(ang)*r*5, c.y - Math.sin(ang)*r*5);
+    streakG.addColorStop(0, `rgba(255,255,255,${0.6 * (c.fleeBursting/80)})`);
+    streakG.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.strokeStyle = streakG;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+
+  // Frenzy glow for carnivores
+  if (alive && frenziedTicks > 0 && c.dna.type === 'carnivore') {
+    const pulse5 = 0.5 + 0.5 * Math.sin(tick * 0.25 + c.x);
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, r + 4 + pulse5 * 3, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(255,30,60,${0.4 + pulse5 * 0.4})`;
+    ctx.lineWidth = 1.5;
+    ctx.shadowColor = 'rgba(255,30,60,0.9)';
+    ctx.shadowBlur = 10;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+  }
+
+  // ── TOXIC: bright green flash ────────────────────────────────────────────────
+  if (alive && c.toxic) {
+    // Flash: alternates between bright and dim at ~4Hz
+    const toxFlash = Math.sin(tick * 0.4) > 0;
+    if (toxFlash) {
+      // Full body flash — bright lime overlay
+      ctx.beginPath();
+      drawShape(ctx, c.x, c.y, r * 1.15, bodyShape);
+      ctx.fillStyle = 'rgba(130,255,20,0.65)';
+      ctx.shadowColor = '#84ff14';
+      ctx.shadowBlur = 14;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+    // Constant green ring regardless of flash phase
+    const toxPulse = 0.5 + 0.5 * Math.sin(tick * 0.15);
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, r + 3 + toxPulse * 2, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(130,255,20,${0.55 + toxPulse * 0.35})`;
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([2, 3]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // ── INFECTION: yellow flash, intensity by stack count ────────────────────────
+  if (alive && c.infectionStacks >= 5) {
+    const infPct   = Math.min(1, (c.infectionStacks - 5) / 10); // 0 at 5 stacks, 1 at 15
+    const infPulse = 0.5 + 0.5 * Math.sin(tick * 0.12 + c.x * 0.03);
+    // Yellow flash speed and intensity scale with stacks
+    const flashRate = 0.15 + infPct * 0.45; // slow at low stacks, fast at high
+    const infFlash  = Math.sin(tick * flashRate) > (0.6 - infPct * 0.5); // more frequent flashes at high stacks
+    if (infFlash) {
+      ctx.beginPath();
+      drawShape(ctx, c.x, c.y, r * 1.12, bodyShape);
+      ctx.fillStyle = `rgba(255,220,0,${0.3 + infPct * 0.45})`;
+      ctx.shadowColor = `rgba(255,200,0,${0.5 + infPct * 0.5})`;
+      ctx.shadowBlur = 8 + infPct * 10;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+    // Yellow haze aura
+    const ig = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, r * 3.5);
+    ig.addColorStop(0, `rgba(255,200,0,${(0.06 + infPct * 0.12) * (0.5 + infPulse * 0.5)})`);
+    ig.addColorStop(1, 'rgba(255,200,0,0)');
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, r * 3.5, 0, Math.PI * 2);
+    ctx.fillStyle = ig; ctx.fill();
+    // Stack counter
+    ctx.globalAlpha = alpha * 0.9;
+    ctx.font = `7px monospace`;
+    ctx.textAlign = 'center';
+    ctx.fillStyle = c.infectionStacks >= 10 ? '#ffdd00' : '#ccaa00';
+    ctx.fillText(`☣${c.infectionStacks}`, c.x, c.y + r + 10);
+    // Contagious outer ring (≥10 stacks)
+    if (c.infectionStacks >= 10) {
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, r + 7 + infPulse * 3, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(255,220,0,${0.4 + infPct * 0.4})`;
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([3, 4]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
+
+  ctx.restore();
+}
+
+function drawSeed(s) {
+  const progress = Math.min(1, s.spawned / s.budget);
+  const alpha = 1 - progress * 0.5; // fades as it exhausts
+  const pulse = 0.7 + 0.3 * Math.sin(tick * 0.04 + s.x);
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  // Outer glow ring
+  ctx.beginPath();
+  ctx.arc(s.x, s.y, 7 * pulse, 0, Math.PI * 2);
+  ctx.strokeStyle = `rgba(40,160,50,0.45)`;
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([3, 4]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  // Core
+  ctx.beginPath();
+  ctx.arc(s.x, s.y, 3.5, 0, Math.PI * 2);
+  ctx.fillStyle = `hsl(120,60%,${28 - progress*10}%)`; // dark green
+  ctx.shadowColor = '#2d8a30';
+  ctx.shadowBlur = 8;
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  // Small progress tick marks around ring (how much budget remains)
+  const ticks = 8;
+  for (let i = 0; i < ticks; i++) {
+    const filled = i / ticks < (1 - progress);
+    if (!filled) continue;
+    const a = (i / ticks) * Math.PI * 2 - Math.PI / 2;
+    ctx.beginPath();
+    ctx.moveTo(s.x + Math.cos(a)*5, s.y + Math.sin(a)*5);
+    ctx.lineTo(s.x + Math.cos(a)*7, s.y + Math.sin(a)*7);
+    ctx.strokeStyle = `rgba(60,200,70,0.7)`;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
   ctx.restore();
 }
 
@@ -923,23 +3223,44 @@ function drawFood(f) {
   ctx.save();
   ctx.beginPath();
   ctx.arc(f.x, f.y, 3, 0, Math.PI * 2);
-  ctx.fillStyle = '#ffd166';
-  ctx.shadowColor = '#ffd166';
-  ctx.shadowBlur = 6;
-  ctx.fill();
-  ctx.shadowBlur = 0;
+  if (f.toxic) {
+    ctx.fillStyle = '#84cc16';
+    ctx.shadowColor = '#a3e635';
+    ctx.shadowBlur = 8;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    // Tiny drip indicator above
+    ctx.beginPath();
+    ctx.arc(f.x, f.y - 4, 1.2, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(163,230,53,0.6)';
+    ctx.fill();
+  } else {
+    ctx.fillStyle = '#ffd166';
+    ctx.shadowColor = '#ffd166';
+    ctx.shadowBlur = 6;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    // Inner specular highlight — jewel effect
+    ctx.beginPath();
+    ctx.arc(f.x - 0.8, f.y - 0.8, 1.1, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,255,220,0.55)';
+    ctx.fill();
+  }
   ctx.restore();
 }
 
 function drawCorpse(corp) {
-  const age = corp.decay / 300; // 0=fresh, 1=gone
+  const age = corp.decay / 1200;
   const alpha = 1 - age * 0.8;
   const r = 3 + (1 - age) * 2;
   ctx.save();
-  ctx.globalAlpha = alpha;
+  ctx.globalAlpha = alpha * 0.55; // Recede corpses in depth layer — visible but background
   ctx.beginPath();
   ctx.arc(corp.x, corp.y, r, 0, Math.PI * 2);
-  ctx.fillStyle = `hsl(30,${Math.round(40 - age*30)}%,${Math.round(18 + age*8)}%)`;
+  // Toxic corpse: green-tinted
+  ctx.fillStyle = corp.toxic
+    ? `hsl(85,${Math.round(50 - age*30)}%,${Math.round(15 + age*8)}%)`
+    : `hsl(30,${Math.round(40 - age*30)}%,${Math.round(18 + age*8)}%)`;
   ctx.shadowColor = 'rgba(80,40,0,0.3)';
   ctx.shadowBlur = 4;
   ctx.fill();
@@ -952,12 +3273,85 @@ function drawCorpse(corp) {
   ctx.restore();
 }
 
+function drawCrater(cr) {
+  const progress = cr.age / CRATER_DURATION; // 0=fresh, 1=healed
+  const alpha = 1 - progress * 0.85;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  // Scorched ground — dark radial gradient
+  const g = ctx.createRadialGradient(cr.x, cr.y, 0, cr.x, cr.y, cr.r);
+  g.addColorStop(0,   `rgba(20,8,4,0.92)`);
+  g.addColorStop(0.5, `rgba(40,15,5,0.6)`);
+  g.addColorStop(1,   `rgba(60,20,5,0)`);
+  ctx.beginPath();
+  ctx.arc(cr.x, cr.y, cr.r, 0, Math.PI * 2);
+  ctx.fillStyle = g;
+  ctx.fill();
+  // Glowing ember rim at the edge
+  if (progress < 0.3) {
+    const emberA = (1 - progress / 0.3) * 0.5;
+    ctx.beginPath();
+    ctx.arc(cr.x, cr.y, cr.r * 0.85, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(255,80,20,${emberA})`;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawMeteorWarning(m) {
+  const progress = 1 - m.countdown / m.maxCountdown; // 0=just armed, 1=impact
+  ctx.save();
+  // Pulsing red targeting circle
+  const pulse = 0.5 + 0.5 * Math.sin(tick * 0.4);
+  const outerR = METEOR_RADIUS * (1.2 + pulse * 0.15);
+  ctx.beginPath();
+  ctx.arc(m.x, m.y, outerR, 0, Math.PI * 2);
+  ctx.strokeStyle = `rgba(255,50,30,${0.3 + progress * 0.5})`;
+  ctx.lineWidth = 2;
+  ctx.setLineDash([8, 6]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  // Crosshair
+  const ch = outerR * 0.35;
+  ctx.strokeStyle = `rgba(255,100,50,${0.5 + progress * 0.4})`;
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(m.x - ch, m.y); ctx.lineTo(m.x + ch, m.y); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(m.x, m.y - ch); ctx.lineTo(m.x, m.y + ch); ctx.stroke();
+  // Incoming streak — grows as countdown decreases
+  const streakLen = progress * 60;
+  ctx.beginPath();
+  ctx.moveTo(m.x - streakLen * 0.7, m.y - streakLen);
+  ctx.lineTo(m.x, m.y);
+  const grad = ctx.createLinearGradient(m.x - streakLen*0.7, m.y - streakLen, m.x, m.y);
+  grad.addColorStop(0, 'rgba(255,150,50,0)');
+  grad.addColorStop(1, `rgba(255,80,20,${progress * 0.8})`);
+  ctx.strokeStyle = grad;
+  ctx.lineWidth = 3 + progress * 4;
+  ctx.stroke();
+  // Impact countdown text
+  const secs = Math.ceil(m.countdown / 60);
+  ctx.globalAlpha = 0.7 + pulse * 0.3;
+  ctx.fillStyle = '#ff4d2d';
+  ctx.font = 'bold 11px monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(m.countdown > 0 ? `☄️ ${secs}s` : '💥', m.x, m.y - outerR - 10);
+  ctx.restore();
+}
+
 function drawChart() {
   const w = chartCanvas.width, h = chartCanvas.height;
   chartCtx.clearRect(0, 0, w, h);
   chartCtx.fillStyle = '#060810';
   chartCtx.fillRect(0, 0, w, h);
-  const all = [...history.h, ...history.c, ...history.f];
+
+  // Season background tint
+  const s = getCurrentSeason();
+  chartCtx.fillStyle = s.barColor + '0a'; // 4% opacity tint
+  chartCtx.fillRect(0, 0, w, h);
+
+  const all = [...history.h, ...history.c, ...history.o, ...history.f];
   const maxVal = Math.max(...all, 1);
   if (history.h.length < 2) return;
 
@@ -974,7 +3368,105 @@ function drawChart() {
   };
   line(history.h, '#00f5c4');
   line(history.c, '#ff4d6d');
+  line(history.o, '#2bbcff');
   line(history.f, '#ffd166');
+}
+
+function drawPlagueZone(pz) {
+  const progress = 1 - pz.ticksLeft / 600; // 0=fresh, 1=expiring
+  const alpha = (1 - progress * 0.7) * 0.55;
+  const pulse = 0.5 + 0.5 * Math.sin(tick * 0.06);
+  ctx.save();
+  // Filled zone
+  const g = ctx.createRadialGradient(pz.x, pz.y, 0, pz.x, pz.y, pz.r);
+  g.addColorStop(0, `rgba(180,60,240,${alpha * 0.35})`);
+  g.addColorStop(0.6, `rgba(140,40,200,${alpha * 0.15})`);
+  g.addColorStop(1, `rgba(100,20,160,0)`);
+  ctx.beginPath(); ctx.arc(pz.x, pz.y, pz.r, 0, Math.PI * 2);
+  ctx.fillStyle = g; ctx.fill();
+  // Pulsing border
+  ctx.beginPath(); ctx.arc(pz.x, pz.y, pz.r, 0, Math.PI * 2);
+  ctx.strokeStyle = `rgba(200,80,255,${0.3 + pulse * 0.3})`;
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([6, 5]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  // Label
+  ctx.globalAlpha = alpha * 1.2;
+  ctx.fillStyle = '#e040fb';
+  ctx.font = '9px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('☣ PLAGUE', pz.x, pz.y - pz.r - 6);
+  ctx.restore();
+}
+
+function drawFire(f) {
+  const intensity = f.intensity;
+  const carried   = !!f.carriedBy;
+  const pulse     = 0.5 + 0.5 * Math.sin(tick * 0.07 + f.x * 0.02);
+  const pulse2    = 0.5 + 0.5 * Math.sin(tick * 0.11 + f.y * 0.02);
+  ctx.save();
+
+  // Glow radius scales with intensity
+  const glowR = (carried ? 55 : 40) * intensity;
+  const g = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, glowR);
+  g.addColorStop(0,   `rgba(255,180,30,${0.22 * intensity})`);
+  g.addColorStop(0.4, `rgba(255,100,10,${0.12 * intensity})`);
+  g.addColorStop(1,   'rgba(255,60,0,0)');
+  ctx.beginPath(); ctx.arc(f.x, f.y, glowR, 0, Math.PI*2);
+  ctx.fillStyle = g; ctx.fill();
+
+  // Core flame — animated flicker
+  const fr = (4 + intensity * 5) * (0.90 + pulse * 0.15);
+  const flamG = ctx.createRadialGradient(f.x, f.y - fr*0.3, 0, f.x, f.y, fr);
+  flamG.addColorStop(0,   `rgba(255,240,180,${0.9 * intensity})`);
+  flamG.addColorStop(0.4, `rgba(255,140,20,${0.8 * intensity})`);
+  flamG.addColorStop(1,   `rgba(255,40,0,0)`);
+  ctx.beginPath(); ctx.arc(f.x, f.y, fr, 0, Math.PI*2);
+  ctx.fillStyle = flamG;
+  ctx.shadowColor = '#ff8800';
+  ctx.shadowBlur = 12 * intensity;
+  ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // Torchbearer effect ring (like shepherd ring)
+  if (carried) {
+    ctx.globalAlpha = 0.18 * intensity;
+    const rr = 90 + Math.sin(tick * 0.05) * 4;
+    ctx.setLineDash([5, 8]);
+    ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.arc(f.x, f.y, rr, 0, Math.PI*2);
+    ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 2.6; ctx.stroke();
+    ctx.beginPath(); ctx.arc(f.x, f.y, rr, 0, Math.PI*2);
+    ctx.strokeStyle = 'rgba(255,160,30,1)'; ctx.lineWidth = 1.1; ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  ctx.restore();
+}
+
+function drawTerritoryMap() {
+  if (!terrCarn || !terrGraze) return;
+  ctx.save();
+  for (let row = 0; row < terrH; row++) {
+    for (let col = 0; col < terrW; col++) {
+      const idx   = row * terrW + col;
+      const cVal  = terrCarn[idx];
+      const gVal  = terrGraze[idx];
+      if (cVal < 0.04 && gVal < 0.04) continue;
+      const px = col * TERR_CELL, py = row * TERR_CELL;
+      // Carnivore pressure: deep red, elegant and subtle
+      if (cVal >= 0.04) {
+        ctx.fillStyle = `rgba(180,20,20,${Math.min(0.18, cVal * 0.22)})`;
+        ctx.fillRect(px, py, TERR_CELL, TERR_CELL);
+      }
+      // Herbivore grazing: deep teal, very faint
+      if (gVal >= 0.04) {
+        ctx.fillStyle = `rgba(0,180,120,${Math.min(0.10, gVal * 0.13)})`;
+        ctx.fillRect(px, py, TERR_CELL, TERR_CELL);
+      }
+    }
+  }
+  ctx.restore();
 }
 
 function render() {
@@ -982,6 +3474,88 @@ function render() {
   ctx.clearRect(0, 0, W, H);
   ctx.fillStyle = 'rgba(6,8,16,0.85)';
   ctx.fillRect(0, 0, W, H);
+
+  // Seasonal ambient overlay
+  const seasonTints = {
+    SPRING: 'rgba(0,245,196,0.025)',
+    SUMMER: 'rgba(255,209,102,0.02)',
+    AUTUMN: 'rgba(255,120,50,0.03)',
+    WINTER: 'rgba(100,140,255,0.04)',
+  };
+  const st = seasonTints[getCurrentSeason().name];
+  if (st) { ctx.fillStyle = st; ctx.fillRect(0, 0, W, H); }
+
+  // Day/Night tint overlay
+  if (window._isNight) {
+    const bm = !!(window._bloodMoon);
+    ctx.fillStyle = bm ? 'rgba(40,0,0,0.28)' : 'rgba(10,5,40,0.22)';
+    ctx.fillRect(0, 0, W, H);
+    const moonG = ctx.createRadialGradient(W * 0.85, H * 0.08, 0, W * 0.85, H * 0.08, H * 0.25);
+    if (bm) {
+      moonG.addColorStop(0, 'rgba(255,60,40,0.10)');
+      moonG.addColorStop(1, 'rgba(0,0,0,0)');
+    } else {
+      moonG.addColorStop(0, 'rgba(160,160,255,0.06)');
+      moonG.addColorStop(1, 'rgba(0,0,0,0)');
+    }
+    ctx.fillStyle = moonG; ctx.fillRect(0, 0, W, H);
+  } else {
+    // Subtle sun warmth during day
+    const sunG = ctx.createRadialGradient(W * 0.5, 0, 0, W * 0.5, 0, H * 0.6);
+    sunG.addColorStop(0, 'rgba(255,220,100,0.03)');
+    sunG.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = sunG; ctx.fillRect(0, 0, W, H);
+  }
+
+  // Active weather overlay
+  if (activeWeather) {
+    const wTints = {
+      'DROUGHT':        'rgba(255,100,30,0.04)',
+      'PLAGUE WIND':    'rgba(180,80,240,0.03)',
+      'FEEDING FRENZY': 'rgba(0,245,196,0.05)',
+      'BLIZZARD':       'rgba(150,200,255,0.06)',
+      'TOXIC RAIN':     'rgba(130,210,20,0.04)',
+    };
+    const wt = wTints[activeWeather.event.name];
+    if (wt) { ctx.fillStyle = wt; ctx.fillRect(0, 0, W, H); }
+  }
+
+  // Frenzy overlay
+  if (frenziedTicks > 0) {
+    const fp = 0.5 + 0.5 * Math.sin(tick * 0.08);
+    ctx.fillStyle = `rgba(255,20,50,${0.02 + fp * 0.02})`;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  // Pheromone render — update offscreen canvas when dirty, then blit in one drawImage call
+  if (pheroHerb && pheroCarn && params.showPhero) {
+    if (pheroNeedsRedraw && tick % 5 === 0 && pheroCtx2) {
+      pheroCtx2.clearRect(0, 0, pheroCanvas.width, pheroCanvas.height);
+      for (let gy = 0; gy < pheroH; gy++) {
+        for (let gx = 0; gx < pheroW; gx++) {
+          const hi = pheroHerb[pheroIdx(gx, gy)];
+          const ci = pheroCarn[pheroIdx(gx, gy)];
+          const oi = pheroOmni ? pheroOmni[pheroIdx(gx, gy)] : 0;
+          const px = gx * PHERO_CELL, py = gy * PHERO_CELL;
+          if (hi > 0.03) {
+            pheroCtx2.fillStyle = `rgba(0,245,196,${Math.min(1,hi*0.25).toFixed(3)})`;
+            pheroCtx2.fillRect(px, py, PHERO_CELL, PHERO_CELL);
+          }
+          if (oi > 0.03) {
+            pheroCtx2.fillStyle = `rgba(0,210,255,${Math.min(1,oi*0.28).toFixed(3)})`;
+            pheroCtx2.fillRect(px, py, PHERO_CELL, PHERO_CELL);
+          }
+          if (ci > 0.03) {
+            pheroCtx2.fillStyle = `rgba(255,77,109,${Math.min(1,ci*0.22).toFixed(3)})`;
+            pheroCtx2.fillRect(px, py, PHERO_CELL, PHERO_CELL);
+          }
+        }
+      }
+      pheroNeedsRedraw = false;
+    }
+    // Single drawImage blit — far cheaper than per-cell fillRect every frame
+    if (pheroCanvas) ctx.drawImage(pheroCanvas, 0, 0);
+  }
 
   if (selectedCreature && selectedCreature.alive) {
     ctx.beginPath();
@@ -993,9 +3567,34 @@ function render() {
     ctx.setLineDash([]);
   }
 
-  for (const corp of corpses) drawCorpse(corp);
+  // ── Ecological depth layers ───────────────────────────────────────────────────
+  // Layer 0: territory heatmap (ground-level, very subtle)
+  drawTerritoryMap();
+  // Layer 1: ground — craters, plague zones
+  for (const cr of craters) drawCrater(cr);
+  for (const pz of plagueZones) drawPlagueZone(pz);
+  // Layer 2: food + seeds
   for (const f of foods) drawFood(f);
-  for (const c of creatures) drawCreature(c);
+  for (const s of seeds) drawSeed(s);
+  // Layer 3: static fires (below creatures, behind environment)
+  for (const f of fires) { if (!f.carriedBy) drawFire(f); }
+  // Layer 4: mid — corpses (desaturated, receded)
+  for (const corp of corpses) drawCorpse(corp);
+  // Layer 5: inactive creatures (sleeping, not moving) — dimmed but visible
+  for (const c of creatures) { if (c.sleeping || !c.alive) drawCreature(c, true); }
+  // Layer 6: active creatures on top — full brightness
+  for (const c of creatures) { if (!c.sleeping && c.alive) drawCreature(c, false); }
+  // Layer 7: torchbearer fires (above creatures so ring is visible)
+  for (const f of fires) { if (f.carriedBy) drawFire(f); }
+  // Layer 8: meteor warnings
+  for (const m of meteors) drawMeteorWarning(m);
+
+  // Cinematic vignette — drawn last, above everything
+  const vign = ctx.createRadialGradient(W/2, H/2, H * 0.3, W/2, H/2, H * 0.85);
+  vign.addColorStop(0, 'rgba(0,0,0,0)');
+  vign.addColorStop(1, 'rgba(0,0,0,0.38)');
+  ctx.fillStyle = vign;
+  ctx.fillRect(0, 0, W, H);
 }
 
 // ── UI ────────────────────────────────────────────────────────────────────────
@@ -1003,9 +3602,129 @@ function updateUI() {
   const alive = creatures.filter(c => c.alive);
   document.getElementById('hPop').textContent   = alive.filter(c => c.dna.type === 'herbivore').length;
   document.getElementById('cPop').textContent   = alive.filter(c => c.dna.type === 'carnivore').length;
+  const oPop = document.getElementById('oPop'); if (oPop) oPop.textContent = alive.filter(c => c.dna.type === 'omnivore').length;
   document.getElementById('fPop').textContent   = foods.length;
+  const sPop2 = document.getElementById('sPop'); if (sPop2) sPop2.textContent = seeds.length;
   document.getElementById('genNum').textContent  = generation;
+
+  // Species panel — only rebuild DOM when membership actually changes (not every frame)
+  const speciesEntries = Object.values(speciesRegistry);
+  const sc = document.getElementById('speciesCount');
+  if (sc) sc.textContent = `(${speciesEntries.length})`;
+  const spCounts = {};
+  for (const c of creatures) { if (c.alive && c.speciesId) spCounts[c.speciesId] = (spCounts[c.speciesId]||0)+1; }
+  const newFingerprint = speciesEntries
+    .filter(sp => (spCounts[sp.id]||0) > 0)
+    .map(sp => sp.id + ':' + (spCounts[sp.id]||0))
+    .join('|');
+  const grid = document.getElementById('speciesGrid');
+  if (grid && newFingerprint !== grid.dataset.fp) {
+    // If selected species went extinct, clear it
+    if (selectedSpeciesId && !(selectedSpeciesId in spCounts)) selectedSpeciesId = null;
+    grid.dataset.fp = newFingerprint;
+    grid.innerHTML = '';
+    for (const sp of speciesEntries) {
+      const cnt = spCounts[sp.id] || 0;
+      if (cnt === 0) continue;
+      const cell = document.createElement('div');
+      cell.className = 'species-cell';
+      cell.title = `Click to highlight | + spawn | − kill one (${sp.type}, ${sp.id.slice(3,8)})`;
+      // Use data attribute + global handler — avoids closure/DOM timing issues
+      cell.dataset.sid = sp.id;
+      // No per-cell listener — handled by delegation on #speciesGrid
+      // Mini canvas icon
+      const mc = document.createElement('canvas');
+      mc.width = 24; mc.height = 24;
+      const mctx = mc.getContext('2d');
+      const col = sp.type === 'herbivore' ? '#00f5c4'
+                : sp.type === 'omnivore'  ? '#2bbcff' : '#ff4d6d';
+      mctx.strokeStyle = col;
+      mctx.fillStyle   = col + '55';
+      mctx.lineWidth   = 1.5;
+      drawShape(mctx, 12, 12, 8, sp.shape);
+      mctx.fill();
+      mctx.stroke();
+      cell.appendChild(mc);
+      const lbl = document.createElement('div');
+      lbl.textContent = cnt;
+      cell.appendChild(lbl);
+      // +/- buttons row
+      const btnRow = document.createElement('div');
+      btnRow.className = 'sp-btn-row';
+      const minusBtn = document.createElement('button');
+      minusBtn.textContent = '−';
+      minusBtn.className = 'sp-btn minus';
+      minusBtn.dataset.action = 'kill';
+      minusBtn.dataset.sid = sp.id;
+      const plusBtn = document.createElement('button');
+      plusBtn.textContent = '+';
+      plusBtn.className = 'sp-btn plus';
+      plusBtn.dataset.action = 'spawn';
+      plusBtn.dataset.sid = sp.id;
+      btnRow.appendChild(minusBtn);
+      btnRow.appendChild(plusBtn);
+      cell.appendChild(btnRow);
+      // Re-apply highlight if this was the selected species
+      if (selectedSpeciesId === sp.id) cell.classList.add('selected-species');
+      grid.appendChild(cell);
+    }
+  }
   document.getElementById('tickNum').textContent = tick;
+
+  // seasonDisplay updated in season bar block above
+  // Season bar
+  const barFill = document.getElementById('seasonBarFill');
+  if (barFill) {
+    const pct = (seasonTick / SEASON_LENGTH) * 100;
+    barFill.style.width = pct + '%';
+    barFill.style.background = getCurrentSeason().barColor;
+    barFill.style.boxShadow = `0 0 6px ${getCurrentSeason().barColor}88`;
+  }
+  // Season display (clean — no day/night mixed in)
+  const seasonEl = document.getElementById('seasonDisplay');
+  if (seasonEl) {
+    const s = getCurrentSeason();
+    seasonEl.textContent = s.emoji + ' ' + s.name;
+    seasonEl.style.color = s.color;
+  }
+
+  // Day/Night separate stat + bar
+  const dayNightEl = document.getElementById('dayNightDisplay');
+  if (dayNightEl) {
+    const cycleLen = isNight ? NIGHT_LENGTH : DAY_LENGTH;
+    const phasePct = Math.round((dayTick / cycleLen) * 100);
+    const isBloodMoon = window._bloodMoon || false;
+    if (isBloodMoon) {
+      dayNightEl.textContent = '🌕';
+      dayNightEl.style.color = '#ff4444';
+    } else {
+      dayNightEl.textContent = isNight ? '🌙' : '☀';
+      dayNightEl.style.color = isNight ? '#8888ee' : '#ffcc44';
+    }
+    dayNightEl.parentElement.querySelector('.stat-lbl').textContent =
+      isBloodMoon ? 'Blood Moon' : (isNight ? `Night ${phasePct}%` : `Day ${phasePct}%`);
+  }
+  const dayNightFill = document.getElementById('dayNightBarFill');
+  if (dayNightFill) {
+    const cycleLen = isNight ? NIGHT_LENGTH : DAY_LENGTH;
+    const pct = (dayTick / cycleLen) * 100;
+    const isBloodMoon = window._bloodMoon || false;
+    dayNightFill.style.width = pct + '%';
+    dayNightFill.style.background = isBloodMoon ? '#ff2222'
+                                   : isNight     ? '#6666cc' : '#ffcc44';
+    dayNightFill.style.boxShadow = isBloodMoon ? '0 0 6px #ff222288'
+                                 : isNight     ? '0 0 4px #6666cc88' : '0 0 4px #ffcc4488';
+  }
+
+  // ── Death panel ──────────────────────────────────────────────────────────
+  const setDeath = (id, v) => { const el2 = document.getElementById(id); if (el2) el2.textContent = v; };
+  setDeath('deathHerb',    deathStats.herb);
+  setDeath('deathCarn',    deathStats.carn);
+  setDeath('deathOmni',    deathStats.omni);
+  setDeath('deathByCarn',  deathStats.byCarnivore);
+  setDeath('deathByEnergy',deathStats.byEnergy);
+  setDeath('deathByInfect',deathStats.byInfection);
+  setDeath('deathByAge',   deathStats.byAge);
 
   if (selectedCreature) {
     const c = selectedCreature, d = c.dna;
@@ -1015,7 +3734,8 @@ function updateUI() {
     } else {
       const energyPct = Math.round((c.energy / 300) * 100);
       const isSated = c.energy >= 270;
-      const maxedOut = c.mateCount >= 3;
+      const mateMax  = c.dna.type === 'herbivore' ? 3 : 5;
+      const maxedOut = c.mateCount >= mateMax;
       const stateTag = c.sleeping
         ? `<br><b style="color:#a0b4f0">💤 SLEEPING (${c.sleepTicks} ticks)</b>`
         : c.matingWith
@@ -1029,20 +3749,44 @@ function updateUI() {
                 : c.matingCooldown > 0
                   ? `<br><b style="color:#636e72">◌ COOLDOWN ${c.matingCooldown}</b>`
                   : '';
+      const staminaBar = (d.type === 'carnivore' || d.type === 'omnivore')
+        ? `<br><b>STAMINA:</b> <b style="opacity:0.5">gene ${(d.stamina??1).toFixed(2)}</b>${c.sprinting ? ' <b style="color:#ffa032">⚡ SPRINTING</b>' : ''}`
+        : '';
+      // Predator intelligence summary
+      let huntMemHTML = '';
+      if (d.type === 'carnivore') {
+        const entries = Object.entries(c.memHuntAttempts || {})
+          .filter(([k,v]) => v >= 3)
+          .map(([k,v]) => {
+            const wins = (c.memHuntWins || {})[k] || 0;
+            return `${k.split('_')[0][0].toUpperCase()}:${Math.round(wins/v*100)}%`;
+          });
+        if (entries.length) huntMemHTML = `<br><b style="opacity:0.5">HUNT MEM: ${entries.join(' ')}</b>`;
+      }
       info.innerHTML = `
         <b>TYPE:</b> ${d.type.toUpperCase()}<br>
+        <b>STATUS:</b> <b style="color:var(--accent)">${c.status || '—'}</b><br>
         <b>ENERGY:</b> ${Math.round(c.energy)} <b style="opacity:0.5">(${energyPct}%)</b><br>
         <b>AGE:</b> ${c.age}<br>
         <b>GEN:</b> ${c.gen}<br>
-        <b>MATINGS:</b> ${c.mateCount}/3${maxedOut ? ' <b style="color:var(--accent2)">RETIRED</b>' : ''}<br>
+        <b>MATINGS:</b> ${c.mateCount}/${mateMax}${maxedOut ? ' <b style="color:var(--accent2)">RETIRED</b>' : ''}<br>
         <br>
         <b>— GENOME —</b><br>
         <b>SPEED:</b> ${d.speed.toFixed(2)}<br>
-        <b>SENSE:</b> ${Math.round(d.sense)}<br>
+        <b>SENSE:</b> ${Math.round(d.sense)}${d.type==='carnivore' ? ' <b style="opacity:0.4">(cone)</b>' : ''}<br>
         <b>SIZE:</b> ${d.size.toFixed(2)}<br>
         <b>FERTILITY:</b> ${(d.fertility*1000).toFixed(2)}‰<br>
         <b>METABOLISM:</b> ${d.metabolism.toFixed(3)}<br>
-        <b>AGGRESSION:</b> ${d.aggression.toFixed(2)}${stateTag}
+        <b>AGGRESSION:</b> ${d.aggression.toFixed(2)}${staminaBar}<br>
+        <b>SOCIABILITY:</b> ${(d.sociability??0.5).toFixed(2)}<br>
+        <b>SPECIES:</b> <b style="opacity:0.5">${c.speciesId ? c.speciesId.slice(3,8) : '?'}</b>${huntMemHTML}${stateTag}
+        ${c.toxic ? '<br><b style="color:#84cc16">☠ TOXIC</b>' : ''}
+        ${c.infectionStacks > 0 ? `<br><b style="color:#c084fc">☣ INFECTION: ${c.infectionStacks}/15 stacks</b>` : ''}
+        ${c.eatBlock > 0 ? `<br><b style="color:#888">🚫 EAT BLOCKED: ${c.eatBlock}t</b>` : ''}
+        ${c.disciple ? `<br><b style="color:#ffaa00">⚔ DISCIPLE (${c.discipleTicks}t)</b>` : ''}
+        ${(c.carnKills||0) > 0 ? `<br><b style="color:#ff8800">🗡 CARN KILLS: ${c.carnKills}</b>` : ''}
+        ${c.omniRole ? `<br><b style="color:#2bbcff">ROLE: ${c.omniRole.toUpperCase()}</b>` : ''}
+        ${c.dna.type === 'herbivore' ? `<br><b style="color:#888">FLEE BURST: ${c.fleeCharge ? '✓ READY' : c.fleeBursting > 0 ? '⚡ ACTIVE' : '✗ SPENT'}</b>` : ''}
       `;
     }
   }
@@ -1059,7 +3803,17 @@ function loop() {
     frames = 0; lastFPSTime = now;
   }
   if (playing) {
-    for (let i = 0; i < speed; i++) updateSim();
+    if (speed >= 1) {
+      const iters = Math.round(speed);
+      for (let i = 0; i < iters; i++) updateSim();
+    } else {
+      // Slow motion: accumulate fractional ticks
+      speedFraction += speed;
+      if (speedFraction >= 1) {
+        speedFraction -= 1;
+        updateSim();
+      }
+    }
   }
   updateUI(); // Always refresh panel so selected creature info stays live
   render();
@@ -1068,6 +3822,40 @@ function loop() {
 }
 
 // ── Controls ──────────────────────────────────────────────────────────────────
+// ── Speed levels (0=0.25x, 1=0.5x, 2=1x, 3=2x, ... 13=12x) ─────────────────
+const SPEED_LEVELS = [0.25, 0.5, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+let speedFraction = 0; // sub-tick accumulator for slow-motion
+
+function updateSpeed(el) {
+  const idx = parseInt(el.value);
+  speed = SPEED_LEVELS[idx] || 1;
+  const lbl = speed < 1 ? speed + '×' : Math.round(speed) + '×';
+  document.getElementById('speedVal').textContent = lbl;
+  // Keep both sliders in sync
+  document.getElementById('speedSlider').value = el.value;
+  const ms = document.getElementById('mobSpeedSlider');
+  if (ms) ms.value = el.value;
+  const mv = document.getElementById('mobSpeedVal');
+  if (mv) mv.textContent = lbl;
+}
+
+// ── Weather banner ─────────────────────────────────────────────────────────────
+let bannerTimeout = null;
+function showWeatherBanner(text, color, durationTicks, subtitle) {
+  const el = document.getElementById('weatherBanner');
+  const titleEl = document.getElementById('weatherBannerTitle');
+  const subEl = document.getElementById('weatherBannerSub');
+  if (!el) return;
+  if (titleEl) titleEl.textContent = text;
+  if (subEl) subEl.textContent = subtitle || '';
+  el.style.borderColor = color;
+  el.style.color = color;
+  el.style.textShadow = `0 0 12px ${color}88`;
+  el.classList.add('visible');
+  if (bannerTimeout) clearTimeout(bannerTimeout);
+  bannerTimeout = setTimeout(() => { el.classList.remove('visible'); }, 4500);
+}
+
 function togglePlay() {
   playing = !playing;
   const btn = document.getElementById('playBtn');
@@ -1075,19 +3863,88 @@ function togglePlay() {
   btn.classList.toggle('active', playing);
 }
 
-function updateSpeed(el) {
-  speed = parseInt(el.value);
-  document.getElementById('speedVal').textContent = speed;
-}
-
 function updateParam(key, el) {
   params[key] = parseInt(el.value);
-  document.getElementById(key + 'Val').textContent = params[key] + (key === 'mutRate' ? '%' : '');
+  const val = params[key] + (key === 'mutRate' ? '%' : '');
+  document.getElementById(key + 'Val').textContent = val;
+  // Keep desktop + mobile sliders in sync
+  const desktopEl = document.getElementById(key);
+  if (desktopEl && desktopEl !== el) desktopEl.value = el.value;
+  const mobKey = 'mob' + key.charAt(0).toUpperCase() + key.slice(1);
+  const mobEl = document.getElementById(mobKey);
+  if (mobEl && mobEl !== el) mobEl.value = el.value;
+  const mobValEl = document.getElementById(mobKey + 'Val');
+  if (mobValEl) mobValEl.textContent = val;
 }
 
 canvas.addEventListener('click', e => {
   const rect = canvas.getBoundingClientRect();
   const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+
+  // ── Deus Mode routing ───────────────────────────────────────────────────────
+  if (deusMode === 'invasive') {
+    spawnInvasive(mx, my);
+    return;
+  }
+  if (deusMode === 'plague') {
+    placePlagueZone(mx, my);
+    return;
+  }
+  if (deusMode === 'meteor') {
+    meteors.push({ x: mx, y: my, countdown: METEOR_COUNTDOWN, maxCountdown: METEOR_COUNTDOWN });
+    clearDeusArmed();
+    return;
+  }
+  if (deusMode === 'champion') {
+    // Find clicked creature
+    let clicked = null;
+    for (const c of creatures) {
+      if (c.alive && dist(c, { x: mx, y: my }) < Math.max(c.dna.size + 14, 20)) { clicked = c; break; }
+    }
+    if (clicked) {
+      // Deus champion: always promote, bypass cooldown, don't wipe others
+      clicked.champion      = true;
+      clicked.disciple      = false;
+      clicked.discipleTicks = 0;
+      clicked.energy        = Math.min(maxEnergy(clicked), maxEnergy(clicked));
+      clicked.dna.speed     = Math.min(5,   clicked.dna.speed    * 2.2);
+      clicked.dna.size      = Math.min(12,  clicked.dna.size     * 1.6);
+      clicked.dna.sense     = Math.min(200, clicked.dna.sense    * 1.5);
+      clicked.dna.stamina   = Math.min(1.0, clicked.dna.stamina  * 1.4);
+      clicked.sleeping      = false;
+      clicked.sleepTicks    = 0;
+      clicked.sleepCooldown = 800;
+      selectedCreature = clicked;
+      clearDeusArmed();
+    }
+    return;
+  }
+  if (deusMode === 'teleport-pick') {
+    let clicked = null;
+    for (const c of creatures) {
+      if (c.alive && dist(c, { x: mx, y: my }) < Math.max(c.dna.size + 14, 20)) { clicked = c; break; }
+    }
+    if (clicked) {
+      deusTeleportCreature = clicked;
+      deusMode = 'teleport-place';
+      canvas.style.cursor = 'cell';
+    }
+    return;
+  }
+  if (deusMode === 'teleport-place') {
+    if (deusTeleportCreature && deusTeleportCreature.alive) {
+      deusTeleportCreature.x = mx;
+      deusTeleportCreature.y = my;
+      deusTeleportCreature.vx = (Math.random() - 0.5);
+      deusTeleportCreature.vy = (Math.random() - 0.5);
+      deusTeleportCreature.trail = [];
+    }
+    deusTeleportCreature = null;
+    clearDeusArmed();
+    return;
+  }
+
+  // ── Normal creature selection ───────────────────────────────────────────────
   let clicked = null;
   // Generous hit radius so small creatures are easy to click
   for (const c of creatures) {
@@ -1101,20 +3958,387 @@ canvas.addEventListener('click', e => {
   }
 });
 
+// ── Resize ────────────────────────────────────────────────────────────────────
 function resize() {
   const panel  = document.querySelector('.panel');
   const header = document.querySelector('header');
   const footer = document.querySelector('footer');
-  canvas.width        = window.innerWidth - panel.offsetWidth;
-  canvas.height       = window.innerHeight - header.offsetHeight - footer.offsetHeight;
-  chartCanvas.width   = panel.offsetWidth - 24;
-  chartCanvas.height  = 60;
+  if (isMobile()) {
+    canvas.width  = window.innerWidth;
+    canvas.height = window.innerHeight - header.offsetHeight;
+    canvas.style.width  = canvas.width  + 'px';
+    canvas.style.height = canvas.height + 'px';
+    chartCanvas.width = 180; chartCanvas.height = 60;
+  } else {
+    canvas.style.width = ''; canvas.style.height = '';
+    canvas.width  = window.innerWidth - panel.offsetWidth;
+    canvas.height = window.innerHeight - header.offsetHeight - footer.offsetHeight;
+    chartCanvas.width  = panel.offsetWidth - 24;
+    chartCanvas.height = 60;
+  }
+  initPhero();
 }
+
+// ── Mobile drawer ─────────────────────────────────────────────────────────────
+function toggleDrawer() {
+  const panel    = document.querySelector('.panel');
+  const toggle   = document.getElementById('drawerToggle');
+  const backdrop = document.getElementById('drawerBackdrop');
+  const open = panel.classList.toggle('drawer-open');
+  if (toggle)   toggle.classList.toggle('open', open);
+  if (backdrop) backdrop.classList.toggle('visible', open);
+}
+
+// Touch on canvas — forward to click handler
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  const t = e.touches[0];
+  canvas.dispatchEvent(new MouseEvent('click', {
+    bubbles: true, cancelable: true,
+    clientX: t.clientX, clientY: t.clientY
+  }));
+}, { passive: false });
+
+window.addEventListener('orientationchange', () => setTimeout(resize, 150));
 
 window.addEventListener('resize', resize);
 resize();
 resetSim();
 loop();
+
+// ── Species grid event delegation ─────────────────────────────────────────────
+document.getElementById('speciesGrid').addEventListener('click', function(e) {
+  // +/- buttons
+  const btn = e.target.closest('button[data-action]');
+  if (btn) {
+    e.stopPropagation();
+    const sid = btn.dataset.sid;
+    if (btn.dataset.action === 'spawn') {
+      spawnFromSpecies(sid);
+    } else if (btn.dataset.action === 'kill') {
+      // Randomly kill one alive creature of this species
+      const candidates = creatures.filter(c => c.alive && c.speciesId === sid);
+      if (candidates.length > 0) {
+        const victim = candidates[Math.floor(Math.random() * candidates.length)];
+        victim.alive = false;
+        corpses.push({ x: victim.x, y: victim.y, energy: 0, decay: 0, fromType: victim.dna.type });
+      }
+    }
+    return;
+  }
+  // Cell highlight (clicking icon/count area)
+  const cell = e.target.closest('.species-cell');
+  if (!cell) return;
+  const sid = cell.dataset.sid;
+  if (!sid) return;
+  if (selectedSpeciesId === sid) {
+    selectedSpeciesId = null;
+  } else {
+    selectedSpeciesId = sid;
+  }
+  document.querySelectorAll('.species-cell').forEach(c2 => {
+    c2.classList.toggle('selected-species', c2.dataset.sid === selectedSpeciesId);
+  });
+});
+
+// ── Deus Ex Machina Functions ─────────────────────────────────────────────────
+
+function clearDeusArmed() {
+  deusMode = null;
+  deusTeleportCreature = null;
+  canvas.style.cursor = 'crosshair';
+  document.querySelectorAll('.btn.deus').forEach(b => b.classList.remove('armed'));
+}
+
+function updateDeusWeatherButtons() {
+  const eventBtnMap = {
+    'DROUGHT':        'deusdroughtBtn',
+    'PLAGUE WIND':    'deusplagueBtn',
+    'FEEDING FRENZY': 'deusfrenzywBtn',
+    'BLIZZARD':       'deusblizzardBtn',
+    'TOXIC RAIN':     'deustoxicBtn',
+  };
+  // Clear all
+  Object.values(eventBtnMap).forEach(id => {
+    const btn = document.getElementById(id);
+    if (btn) btn.classList.remove('active-event');
+  });
+  // Highlight active
+  if (activeWeather) {
+    const id = eventBtnMap[activeWeather.event.name];
+    if (id) { const btn = document.getElementById(id); if (btn) btn.classList.add('active-event'); }
+  }
+}
+
+function deusSetSeason(idx) {
+  currentSeasonIdx = idx;
+  seasonTick = 0;
+  longWinterActive = false;
+  longWinterTicks = 0;
+  ['longWinterBtn','mobLongWinterBtn'].forEach(id => { const b=document.getElementById(id); if(b) b.classList.remove('active-event'); });
+  const ns = SEASONS[idx];
+  showWeatherBanner(ns.emoji + ' ' + ns.name + ' — FORCED', ns.color, 120, 'A divine hand shifts the seasons.');
+}
+
+function deusLongWinter() {
+  currentSeasonIdx = 3; // Winter
+  seasonTick = 0;
+  longWinterActive = true;
+  longWinterTicks = SEASON_LENGTH * 2.5;
+  ['longWinterBtn','mobLongWinterBtn'].forEach(id => { const b=document.getElementById(id); if(b) b.classList.add('active-event'); });
+  showWeatherBanner('🧊 LONG WINTER BEGINS', '#a0b4f0', 200, 'An endless freeze descends. No thaw in sight.');
+}
+
+// Plague wind is placed by click — arm it like meteor
+let plagueWindArmed = false;
+function deusArmPlagueWind() {
+  const btn = document.getElementById('deusPlaguebtn') || document.getElementById('deusplagueBtn');
+  plagueWindArmed = !plagueWindArmed;
+  if (btn) btn.classList.toggle('armed', plagueWindArmed);
+  if (plagueWindArmed) {
+    deusMode = 'plague';
+    showWeatherBanner('💨 PLAGUE WIND ARMED', '#c084fc', 80, 'Click canvas to place plague zone');
+  } else {
+    deusMode = null;
+  }
+}
+
+function placePlagueZone(x, y) {
+  plagueZones.push({ x, y, r: plagueRadius, ticksLeft: 600 });
+  activeWeather = { event: WEATHER_EVENTS.find(e => e.name === 'PLAGUE WIND'), ticksLeft: 600 };
+  showWeatherBanner('💨 PLAGUE ZONE', '#c084fc', 100,
+    'Infection spreads within the zone. 5 stacks = sick, 10 = contagious, 15 = death.');
+  updateDeusWeatherButtons();
+  plagueWindArmed = false; deusMode = null;
+  const btn = document.getElementById('deusPlaguebtn') || document.getElementById('deusplagueBtn');
+  if (btn) btn.classList.remove('armed');
+}
+
+function deusTriggerWeather(name) {
+  if (name === 'PLAGUE WIND') { deusArmPlagueWind(); return; }
+  const ev = WEATHER_EVENTS.find(e => e.name === name);
+  if (!ev) return;
+  activeWeather = { event: ev, ticksLeft: ev.duration };
+  toxicRainActive = ev.name === 'TOXIC RAIN';
+  weatherCooldown = 0;
+  showWeatherBanner(ev.emoji + ' ' + ev.name + ' — FORCED', ev.color, ev.duration, ev.desc);
+  updateDeusWeatherButtons();
+}
+
+function deusClearWeather() {
+  if (activeWeather) {
+    const endedName = activeWeather.event.name;
+    activeWeather = null;
+    toxicRainActive = false;
+    weatherCooldown = 300;
+    showWeatherBanner('✕ WEATHER CLEARED', '#8899bb', 60, endedName + ' HAS BEEN DISMISSED');
+    updateDeusWeatherButtons();
+  }
+}
+
+function toggleRandomWeather() {
+  randomWeatherEnabled = !randomWeatherEnabled;
+  const label = randomWeatherEnabled ? '🎲 RANDOM EVENTS: ON' : '🎲 RANDOM EVENTS: OFF';
+  if (randomWeatherEnabled) weatherCooldown = 600 + Math.floor(Math.random() * 600);
+  ['randomWeatherBtn', 'mobRandomWeatherBtn'].forEach(id => {
+    const b = document.getElementById(id);
+    if (!b) return;
+    b.textContent = label;
+    b.classList.toggle('active-event', randomWeatherEnabled);
+  });
+}
+
+function deusClearToxic() {
+  // Remove all toxic food pellets
+  const before = foods.length;
+  foods = foods.filter(f => !f.toxic);
+  const removedFood = before - foods.length;
+  // Also clear toxicRainActive so no more toxic food spawns (unless weather still active)
+  // If toxic rain weather is still running, end it too
+  if (activeWeather && activeWeather.event.name === 'TOXIC RAIN') {
+    activeWeather = null;
+    toxicRainActive = false;
+    weatherCooldown = 300;
+    updateDeusWeatherButtons();
+  } else {
+    toxicRainActive = false;
+  }
+  showWeatherBanner('🧹 TOXINS PURGED', '#a3e635', 60,
+    `${removedFood} toxic food pellets removed`);
+}
+
+function deusArmMeteor() {
+  if (deusMode === 'meteor') { clearDeusArmed(); return; }
+  clearDeusArmed();
+  deusMode = 'meteor';
+  canvas.style.cursor = 'crosshair';
+  ['meteorBtn','mobMeteorBtn'].forEach(id => { const b=document.getElementById(id); if(b) b.classList.add('armed'); });
+}
+
+function deusBloodMoon() {
+  isNight = true;
+  window._bloodMoon = true;
+  dayTick = 0;
+  // Blood moon lasts 600 ticks (~10s at 60fps)
+  window._bloodMoonForced = 600;
+  frenziedTicks = Math.max(frenziedTicks, 600);
+  showWeatherBanner('🌕 BLOOD MOON — FORCED', '#ff2222', 200,
+    'Carnivores frenzied. Herbivores breed wildly. Omnivores hunt the weak.');
+  const btn = document.getElementById('bloodMoonBtn');
+  if (btn) btn.classList.add('active-event');
+}
+
+function deusArmInvasive() {
+  if (deusMode === 'invasive') { clearDeusArmed(); return; }
+  clearDeusArmed();
+  deusMode = 'invasive';
+  canvas.style.cursor = 'crosshair';
+  const btn = document.getElementById('invasiveBtn');
+  if (btn) btn.classList.add('armed');
+  showWeatherBanner('🧬 INVASIVE SPECIES ARMED', '#ff8800', 80,
+    'Click canvas to drop an invasive species.');
+}
+
+function deusInvasive() { deusArmInvasive(); }
+
+function spawnInvasive(x, y) {
+  invasiveCount++;
+  // Random extreme DNA — a true outlier in the ecosystem
+  const types = ['herbivore','carnivore','omnivore'];
+  const type  = types[Math.floor(Math.random() * types.length)];
+  const invasiveDNA = {
+    type,
+    speed:      2.5 + Math.random() * 2.5,        // fast
+    sense:      100 + Math.random() * 100,         // acute
+    size:       7   + Math.random() * 5,           // large
+    fertility:  0.006 + Math.random() * 0.004,     // highly fertile
+    metabolism: 0.01  + Math.random() * 0.02,      // efficient
+    aggression: 0.5   + Math.random() * 0.5,       // aggressive
+    stamina:    0.7   + Math.random() * 0.3,       // high stamina
+    sociability:0.3   + Math.random() * 0.5,
+  };
+  // Spawn 5 of them
+  for (let i = 0; i < 5; i++) {
+    const c2 = createCreature(type, x + (Math.random()-0.5)*60, y + (Math.random()-0.5)*60, {...invasiveDNA});
+    c2.energy = maxEnergy(c2); // start at full health
+    creatures.push(c2);
+  }
+  clearDeusArmed();
+  showWeatherBanner('🧬 INVASIVE SPECIES', '#ff8800', 180,
+    `5 invasive ${type}s have arrived. Extreme traits — ecosystem impact unknown.`);
+}
+
+function deusFrenzy() {
+  frenziedTicks = 500;
+  showWeatherBanner('🩸 CARNIVORE FRENZY', '#ff4d6d', 200, 'Carnivores ignore all social inhibition. Omnivores beware.');
+  ['frenzyCBtn','mobFrenzyCBtn'].forEach(id => { const b=document.getElementById(id); if(b) b.classList.add('active-event'); });
+}
+
+function deusArmChampion() {
+  if (deusMode === 'champion') { clearDeusArmed(); return; }
+  clearDeusArmed();
+  deusMode = 'champion';
+  canvas.style.cursor = 'pointer';
+  ['championBtn','mobChampionBtn'].forEach(id => { const b=document.getElementById(id); if(b) b.classList.add('armed'); });
+}
+
+function deusArmTeleport() {
+  if (deusMode === 'teleport-pick' || deusMode === 'teleport-place') { clearDeusArmed(); return; }
+  clearDeusArmed();
+  deusMode = 'teleport-pick';
+  canvas.style.cursor = 'pointer';
+  ['teleportBtn','mobTeleportBtn'].forEach(id => { const b=document.getElementById(id); if(b) b.classList.add('armed'); });
+}
+
+// Escape key cancels any armed Deus mode
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') clearDeusArmed();
+});
+
+// ── Targeted Mutations ────────────────────────────────────────────────────────
+const MUT_TRAITS = [
+  { key: 'speed',      label: 'Speed',      min: 0.2,    max: 5,    step: 0.15 },
+  { key: 'sense',      label: 'Sense',      min: 15,     max: 200,  step: 8    },
+  { key: 'size',       label: 'Size',       min: 2,      max: 12,   step: 0.3  },
+  { key: 'fertility',  label: 'Fertility',  min: 0.0005, max: 0.01, step: 0.0005 },
+  { key: 'metabolism', label: 'Metabolism', min: 0.005,  max: 0.08, step: 0.003 },
+  { key: 'aggression', label: 'Aggression', min: 0,      max: 1,    step: 0.07 },
+  { key: 'stamina',    label: 'Stamina',    min: 0.1,    max: 1.0,  step: 0.07 },
+];
+
+function buildMutRows() {
+  const container = document.getElementById('mutRows');
+  if (!container) return;
+  container.innerHTML = '';
+  for (const trait of MUT_TRAITS) {
+    const row = document.createElement('div');
+    row.className = 'mut-row';
+    const lbl = document.createElement('div');
+    lbl.className = 'mut-label';
+    lbl.textContent = trait.label;
+    const minus = document.createElement('button');
+    minus.className = 'mut-btn minus';
+    minus.textContent = '−';
+    minus.title = `Decrease ${trait.label} for all ${mutTargetType}s`;
+    minus.onclick = () => nudgeTrait(trait.key, -trait.step, trait.min, trait.max);
+    const plus = document.createElement('button');
+    plus.className = 'mut-btn';
+    plus.textContent = '+';
+    plus.title = `Increase ${trait.label} for all ${mutTargetType}s`;
+    plus.onclick = () => nudgeTrait(trait.key, trait.step, trait.min, trait.max);
+    row.appendChild(lbl);
+    row.appendChild(minus);
+    row.appendChild(plus);
+    container.appendChild(row);
+  }
+}
+
+function setMutTab(type) {
+  mutTargetType = type;
+  document.querySelectorAll('.type-tab').forEach(t => t.classList.remove('active'));
+  const tabMap = { herbivore: 'mutTabHerb', carnivore: 'mutTabCarn', omnivore: 'mutTabOmni' };
+  const mobTabMap = { herbivore: 'mobMutTabHerb', carnivore: 'mobMutTabCarn', omnivore: 'mobMutTabOmni' };
+  [tabMap[type], mobTabMap[type]].forEach(id => { const el = document.getElementById(id); if (el) el.classList.add('active'); });
+}
+
+function nudgeTrait(key, delta, min, max) {
+  let affected = 0;
+  for (const c of creatures) {
+    if (!c.alive || c.dna.type !== mutTargetType) continue;
+    c.dna[key] = Math.max(min, Math.min(max, (c.dna[key] ?? 0) + delta));
+    affected++;
+  }
+  if (affected > 0) {
+    const dir = delta > 0 ? '▲' : '▼';
+    showWeatherBanner(`${dir} ${key.toUpperCase()} NUDGED`, '#8899bb', 60,
+      `${affected} ${mutTargetType}s affected`);
+  }
+}
+
+// Build mutation rows on load
+buildMutRows();
+
+function toggleSection(bodyId, btn) {
+  const body = document.getElementById(bodyId);
+  if (!body) return;
+  const collapsed = body.style.display === 'none';
+  body.style.display = collapsed ? '' : 'none';
+  if (btn) {
+    btn.textContent = collapsed ? '▼' : '▶';
+    btn.classList.toggle('collapsed', !collapsed);
+  }
+}
+
+function toggleLegend() {
+  toggleSection('legendBody', document.getElementById('legendToggle'));
+}
+
+function togglePhero() {
+  params.showPhero = !params.showPhero;
+  const btn = document.getElementById('pheroBtn');
+  btn.textContent = params.showPhero ? '◎ HIDE SCENT TRAILS' : '◎ SHOW SCENT TRAILS';
+  btn.classList.toggle('active', params.showPhero);
+}
 
 // ── Spawn quantity selector ────────────────────────────────────────────────────
 let currentQty = 1;
@@ -1125,13 +4349,19 @@ function setQty(n) {
   currentQty = n;
   document.querySelectorAll('.qty-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('qty' + n).classList.add('active');
+  const mobEl = document.getElementById('mobQty' + n);
+  if (mobEl) mobEl.classList.add('active');
   // Update button labels
-  const plural = s => n === 1 ? '' : 'S';
+  const plural = () => n === 1 ? '' : 'S';
   document.getElementById('spawnHlbl').textContent = n;
   document.getElementById('spawnClbl').textContent = n;
+  document.getElementById('spawnOlbl').textContent = n;
+  document.getElementById('spawnSlbl').textContent = n;
   document.getElementById('spawnFlbl').textContent = n;
-  document.getElementById('spawnHs').textContent = plural('S');
-  document.getElementById('spawnCs').textContent = plural('S');
+  document.getElementById('spawnHs').textContent = plural();
+  document.getElementById('spawnCs').textContent = plural();
+  document.getElementById('spawnOs').textContent = plural();
+  document.getElementById('spawnSs').textContent = plural();
 }
 </script>
 </body>
