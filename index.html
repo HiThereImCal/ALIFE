@@ -238,6 +238,15 @@
     height: 100%; width: 0%;
     transition: background 1s;
   }
+  #dayNightBar {
+    position: fixed; top: 56px; left: 0; right: 220px;
+    height: 2px; z-index: 98; pointer-events: none;
+    background: transparent;
+  }
+  #dayNightBarFill {
+    height: 100%; width: 0%;
+    transition: background 0.5s;
+  }
 
   /* Selected species highlight ring */
   .species-cell.selected-species {
@@ -363,6 +372,7 @@
 
     /* Season bar full width */
     #seasonBar { right: 0; }
+    #dayNightBar { right: 0; }
 
     /* Canvas fills all available space */
     .main { position: relative; overflow: hidden; }
@@ -447,6 +457,7 @@
 
 <div id="weatherBanner"><div id="weatherBannerTitle"></div><div id="weatherBannerSub"></div></div>
 <div id="seasonBar"><div id="seasonBarFill"></div></div>
+<div id="dayNightBar"><div id="dayNightBarFill"></div></div>
 <button id="drawerToggle" onclick="toggleDrawer()" aria-label="Toggle controls">
   <span></span><span></span><span></span>
 </button>
@@ -463,6 +474,7 @@
     <div class="stat stat-hide-mobile"><div class="stat-val" id="genNum" style="color:#a29bfe">0</div><div class="stat-lbl">Generation</div></div>
     <div class="stat stat-hide-mobile"><div class="stat-val" id="tickNum">0</div><div class="stat-lbl">Tick</div></div>
     <div class="stat"><div class="stat-val" id="seasonDisplay" style="color:#ffd166">🌱</div><div class="stat-lbl">Season</div></div>
+    <div class="stat stat-hide-mobile"><div class="stat-val" id="dayNightDisplay" style="color:#aaaaee">☀</div><div class="stat-lbl">Cycle</div></div>
   </div>
   <a href="https://www.linkedin.com/in/callum-smith-55118071/" target="_blank" rel="noopener" class="by-cal-link">
     <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
@@ -613,7 +625,7 @@
       <div class="deus-subtitle">— Weather —</div>
       <button class="btn deus" id="randomWeatherBtn" onclick="toggleRandomWeather()" style="font-size:9px;">🎲 RANDOM EVENTS: OFF</button>
       <button class="btn deus" id="deusdroughtBtn"  onclick="deusTriggerWeather('DROUGHT')"        style="font-size:9px;">🔥 DROUGHT</button>
-      <button class="btn deus" id="deusplagueBtn"   onclick="deusTriggerWeather('PLAGUE WIND')"    style="font-size:9px;">💨 PLAGUE WIND</button>
+      <button class="btn deus" id="deusplagueBtn"   onclick="deusArmPlagueWind()"    style="font-size:9px;">💨 PLAGUE WIND</button>
       <button class="btn deus" id="deusfrenzywBtn"  onclick="deusTriggerWeather('FEEDING FRENZY')" style="font-size:9px;">⚡ FEEDING FRENZY</button>
       <button class="btn deus" id="deusblizzardBtn" onclick="deusTriggerWeather('BLIZZARD')"       style="font-size:9px;">🌨️ BLIZZARD</button>
       <button class="btn deus" id="deustoxicBtn"    onclick="deusTriggerWeather('TOXIC RAIN')"     style="font-size:9px;">☠️ TOXIC RAIN</button>
@@ -945,7 +957,9 @@ const history = { h: [], c: [], o: [], f: [] };
 const MAX_HISTORY = 196;
 
 // ── Seasons ───────────────────────────────────────────────────────────────────
-const SEASON_LENGTH = 1200; // ticks per season
+const SEASON_LENGTH = 4800; // ticks per season (4× original for richer cycles)
+const DAY_LENGTH    = 1800; // ticks per day (1.5 original seasons)
+const NIGHT_LENGTH  = 1800; // ticks per night
 const SEASONS = [
   { name: 'SPRING', emoji: '🌱', color: '#00f5c4', foodMult: 2.2,  metaMult: 0.85, barColor: '#00f5c4' },
   { name: 'SUMMER', emoji: '☀️', color: '#ffd166', foodMult: 1.0,  metaMult: 1.0,  barColor: '#ffd166' },
@@ -954,19 +968,23 @@ const SEASONS = [
 ];
 let currentSeasonIdx = 0;
 let seasonTick = 0; // ticks elapsed in current season
+let dayTick    = 0; // ticks elapsed in current day/night phase
+let isNight    = false; // current phase
 
 function getCurrentSeason() { return SEASONS[currentSeasonIdx]; }
 
 // ── Weather events ─────────────────────────────────────────────────────────────
 const WEATHER_EVENTS = [
   { name: 'DROUGHT',        emoji: '🔥', color: '#ff6b35', foodMult: 0.15, metaMult: 1.1,  duration: 700,  desc: 'Food growth halted. All creatures burn more energy.' },
-  { name: 'PLAGUE WIND',    emoji: '💨', color: '#c084fc', foodMult: 1.0,  metaMult: 1.5,  duration: 600,  desc: 'A toxic wind raises metabolism across the ecosystem.' },
+  { name: 'PLAGUE WIND',    emoji: '💨', color: '#c084fc', foodMult: 1.0,  metaMult: 1.0,  duration: 600,  desc: 'Click to place a plague zone. Infection spreads by proximity — 15 stacks = death.' },
   { name: 'FEEDING FRENZY', emoji: '⚡', color: '#00f5c4', foodMult: 2.8,  metaMult: 0.9,  duration: 450,  desc: 'Food explodes. Populations surge — then crash.' },
   { name: 'BLIZZARD',       emoji: '🌨️', color: '#7dd3fc', foodMult: 0.05, metaMult: 1.6,  duration: 600,  desc: 'Near-zero food. Metabolism spikes. Only the fat survive.' },
-  { name: 'TOXIC RAIN',     emoji: '☠️', color: '#a3e635', foodMult: 1.8,  metaMult: 1.0,  duration: 500,  desc: 'Food blooms but poisons all who eat it. Carnivores thrive.' },
+  { name: 'TOXIC RAIN',     emoji: '☠️', color: '#a3e635', foodMult: 1.8,  metaMult: 1.0,  duration: 500,  desc: 'Food blooms but is toxic. Eating drains energy and blocks feeding. Toxicity spreads through corpses.' },
 ];
 let activeWeather = null;    // { event, ticksLeft }
 let weatherCooldown = 800;   // ticks until next possible event
+let plagueZones  = [];        // { x, y, r, ticksLeft } — active plague areas
+let plagueRadius = 160;       // radius of plague wind zone
 
 // ── DNA ───────────────────────────────────────────────────────────────────────
 function randomDNA(type) {
@@ -979,6 +997,9 @@ function randomDNA(type) {
     metabolism: 0.015 + Math.random() * 0.03,
     aggression: type === 'carnivore' ? 0.5 + Math.random() * 0.5 : Math.random() * 0.3,
     stamina:    (type === 'carnivore' || type === 'omnivore') ? 0.4 + Math.random() * 0.6 : 1.0,
+    sociability: type === 'herbivore' ? 0.4 + Math.random() * 0.6
+               : type === 'omnivore'  ? 0.2 + Math.random() * 0.5
+               : 0.1 + Math.random() * 0.3, // carnivores naturally less social
   };
 }
 
@@ -994,6 +1015,7 @@ function mutateDNA(dna) {
     metabolism: Math.max(0.005,  Math.min(0.08, mut(dna.metabolism))),
     aggression: Math.max(0,   Math.min(1,    mut(dna.aggression))),
     stamina:    Math.max(0.1, Math.min(1.0,  mut(dna.stamina ?? 1.0))),
+    sociability: Math.max(0.0, Math.min(1.0,  mut(dna.sociability ?? 0.5))),
   };
 }
 
@@ -1030,6 +1052,16 @@ function createCreature(type, x, y, dna) {
     memHuntAttempts:{},    // { preyType: attemptCount }
     trail:          [],
     gen:            generation,
+    // ── Status flags ─────────────────────────────────────────────────────────
+    toxic:          false,   // currently poisoned
+    toxicTicks:     0,       // ticks remaining of toxic effect
+    eatBlock:       0,       // ticks blocked from eating (toxic/sick)
+    infectionStacks:0,       // 0-15 infection stacks
+    infStackCooldown:0,      // ticks until can receive next stack
+    // ── Fission-fusion ───────────────────────────────────────────────────────
+    groupId:        null,    // current group membership
+    panicTicks:     0,       // witness-panic flee timer
+    desperateTicks: 0,       // desperate behaviour timer
   };
   assignSpecies(c);
   return c;
@@ -1067,10 +1099,11 @@ function resetSim() {
   selectedSpeciesId = null;
   // Deus state
   deusMode = null; deusTeleportCreature = null;
-  meteors = []; craters = [];
+  meteors = []; craters = []; plagueZones = [];
   longWinterActive = false; longWinterTicks = 0;
   frenziedTicks = 0; toxicRainActive = false;
   randomWeatherEnabled = false;
+  dayTick = 0; isNight = false;
   ['randomWeatherBtn','mobRandomWeatherBtn'].forEach(id => {
     const b = document.getElementById(id);
     if (b) { b.textContent = '🎲 RANDOM EVENTS: OFF'; b.classList.remove('active-event'); }
@@ -1121,6 +1154,14 @@ function spawnFromSpecies(sid) {
       memHuntAttempts: {},
       trail:           [],
       gen:             generation,
+      toxic:           false,
+      toxicTicks:      0,
+      eatBlock:        0,
+      infectionStacks: 0,
+      infStackCooldown:0,
+      groupId:         null,
+      panicTicks:      0,
+      desperateTicks:  0,
     };
     creatures.push(creature);
   }
@@ -1181,18 +1222,42 @@ function updateCreature(c) {
   if (!c.alive) return;
 
   c.age++;
-  if (c.matingCooldown > 0) c.matingCooldown--;
+  if (c.matingCooldown   > 0) c.matingCooldown--;
+  if (c.eatBlock         > 0) c.eatBlock--;
+  if (c.panicTicks       > 0) c.panicTicks--;
+  if (c.desperateTicks   > 0) c.desperateTicks--;
+  if (c.infStackCooldown > 0) c.infStackCooldown--;
+
+  // ── Toxic recovery: ticks down, then clears ──────────────────────────────
+  if (c.toxic) {
+    c.toxicTicks--;
+    c.energy -= 0.18; // ongoing toxic drain
+    if (c.toxicTicks <= 0) { c.toxic = false; c.toxicTicks = 0; }
+  }
+
+  // ── Infection debuffs (applied via multipliers below) ────────────────────
+  const infected   = c.infectionStacks >= 5;
+  const contagious = c.infectionStacks >= 10;
+  // Stack decay: lose 1 stack every 600 ticks when not gaining
+  if (c.infectionStacks > 0 && c.infStackCooldown === 0 && tick % 600 === Math.floor(c.id.charCodeAt(0)) % 600) {
+    c.infectionStacks = Math.max(0, c.infectionStacks - 1);
+  }
+  // Infection energy drain
+  if (infected) c.energy -= 0.06;
   // Normal metabolism; slow down in the last 20% to give the boom-bust cycle
   // more time to stabilise rather than crash
   const baseDrain = c.dna.metabolism + c.dna.speed * 0.003 + c.dna.size * 0.002;
-  const seasonMult = window._seasonMetaMult || 1.0;
-  const drainMult = (c.energy < 60 ? 0.45 : 1.0) * seasonMult; // 55% slower when starving
+  const seasonMult  = window._seasonMetaMult || 1.0;
+  const nightMult   = (window._isNight && c.dna.type !== 'carnivore') ? 0.88 : 1.0;
+  const infMult     = infected ? 1.12 : 1.0;
+  const drainMult   = (c.energy < 60 ? 0.45 : 1.0) * seasonMult * nightMult * infMult;
   c.energy -= baseDrain * drainMult;
 
   if (c.energy <= 0 || c.age > 4000) {
     if (c.matingWith) { c.matingWith.matingWith = null; c.matingWith.matingTicks = 0; }
     // All deaths leave a corpse (burst carnivore pheromone too — death smell)
-    corpses.push({ x: c.x, y: c.y, energy: 20 + Math.random() * 25, decay: 0, fromType: c.dna.type });
+    corpses.push({ x: c.x, y: c.y, energy: 20 + Math.random() * 25, decay: 0,
+                    fromType: c.dna.type, toxic: c.toxic || false });
     // Large pheromone burst on death — attracts carnivores and omnivores
     if (pheroCarn) depositPhero(pheroCarn, c.x, c.y, 1.0);
     if (pheroOmni) depositPhero(pheroOmni, c.x, c.y, 0.7);
@@ -1327,13 +1392,17 @@ function updateCreature(c) {
   c.trail.push({ x: c.x, y: c.y });
   if (c.trail.length > 8) c.trail.shift();
 
-  const MATE_ENERGY  = 240; // 80% of max 300 — required to mate
+  const nightFertMult = window._nightFertMult || 1.0;
+  const bloodMoon    = !!(window._bloodMoon && isNight);
+  const MATE_ENERGY  = bloodMoon ? 60 : (isNight ? 200 : 240); // blood moon: 1/4 normal
   const SATED_ENERGY = 270; // 90% of max 300 — above this, behaviour shifts
   const MAX_MATES    = c.dna.type === 'herbivore' ? 3 : 5; // carns/omnis retire at 5
 
-  const isSated    = c.energy >= SATED_ENERGY;
-  const canMate    = c.matingCooldown === 0 && c.mateCount < MAX_MATES && !c.matingWith;
-  const mateElig   = canMate && c.energy >= MATE_ENERGY;
+  const isSated       = c.energy >= SATED_ENERGY;
+  const canMate       = c.matingCooldown === 0 && c.mateCount < MAX_MATES && !c.matingWith;
+  const mateElig      = canMate && c.energy >= MATE_ENERGY;
+  const carnDesperate = c.dna.type === 'carnivore' && c.energy < 60;
+  const omniDesperate = c.dna.type === 'omnivore'  && c.energy < 60;
 
   let tx = null, ty = null;
 
@@ -1343,19 +1412,40 @@ function updateCreature(c) {
     const isShepherded = !!(c._shepherdRef && c._shepherdRef.alive);
     // Always flee carnivores UNLESS currently shepherded
     if (!isShepherded) {
+      // Panic overrides everything — witness flee from omnivore kills
+      if (c.panicTicks > 0) {
+        c.vx += (Math.random()-0.5)*1.5; c.vy += (Math.random()-0.5)*1.5;
+        c.status = 'PANICKING';
+        tx = c.x + c.vx * 40; ty = c.y + c.vy * 40;
+      }
       const fleeRange = isSated ? c.dna.sense * 1.4 : c.dna.sense;
-      const predator = gridNearest(c.x, c.y, sgCreatures, fleeRange,
-        o => o !== c && o.dna.type === 'carnivore');
-      if (predator) {
-        const dx = c.x - predator.x, dy = c.y - predator.y;
-        const d = Math.sqrt(dx*dx + dy*dy) + 0.001;
-        tx = c.x + (dx/d) * (isSated ? 120 : 80);
-        ty = c.y + (dy/d) * (isSated ? 120 : 80);
-        c.status = 'FLEEING';
+      if (tx === null) {
+        const predator = gridNearest(c.x, c.y, sgCreatures, fleeRange,
+          o => o !== c && o.dna.type === 'carnivore');
+        if (predator) {
+          const dx = c.x - predator.x, dy = c.y - predator.y;
+          const d = Math.sqrt(dx*dx + dy*dy) + 0.001;
+          tx = c.x + (dx/d) * (isSated ? 120 : 80);
+          ty = c.y + (dy/d) * (isSated ? 120 : 80);
+          c.status = 'FLEEING';
+        }
+      }
+      // Avoid infected agents (herbivores flee slightly)
+      if (tx === null) {
+        const infAgent = gridNearest(c.x, c.y, sgCreatures, c.dna.sense * 0.7,
+          o => o !== c && o.infectionStacks >= 10);
+        if (infAgent) {
+          const dx = c.x - infAgent.x, dy = c.y - infAgent.y;
+          const d = Math.sqrt(dx*dx+dy*dy)+0.001;
+          c.vx += (dx/d) * 0.18; c.vy += (dy/d) * 0.18;
+        }
       }
     } else {
       c.status = 'SHEPHERDED';
     }
+    // Desperate herbivore: below 15% breaks from herd (suppresses flocking below)
+    if (c.energy < 45) { c.desperateTicks = 60; }
+
     // Mildly repelled by corpses (smell of death = predator nearby)
     if (tx === null) {
       const corpse = gridNearest(c.x, c.y, sgCorpses, c.dna.sense * 0.5, null);
@@ -1402,6 +1492,17 @@ function updateCreature(c) {
     const dangerCarn = gridNearest(c.x, c.y, sgCreatures, c.dna.sense,
       o => o !== c && o.dna.type === 'carnivore');
 
+    // Avoid contagious infected agents (omnivores avoid cautiously)
+    {
+      const infAgent = gridNearest(c.x, c.y, sgCreatures, c.dna.sense * 0.6,
+        o => o !== c && o.infectionStacks >= 10);
+      if (infAgent) {
+        const dx = c.x - infAgent.x, dy = c.y - infAgent.y;
+        const d = Math.sqrt(dx*dx+dy*dy)+0.001;
+        c.vx += (dx/d) * 0.22; c.vy += (dy/d) * 0.22;
+      }
+    }
+
     if (isSated) {
       // SHEPHERDING: attract nearby herbivores to follow
       c.status = 'SHEPHERDING';
@@ -1413,8 +1514,8 @@ function updateCreature(c) {
         if (mate) { tx = mate.x; ty = mate.y; c.status = 'SEEKING MATE'; }
       }
     } else {
-      // Flee awake carnivores
-      if (dangerCarn && !dangerCarn.sleeping) {
+      // Flee awake carnivores (unless desperate — then risk it)
+      if (!omniDesperate && dangerCarn && !dangerCarn.sleeping) {
         const dx = c.x - dangerCarn.x, dy = c.y - dangerCarn.y;
         const d = Math.sqrt(dx*dx+dy*dy)+0.001;
         tx = c.x + (dx/d)*100; ty = c.y + (dy/d)*100;
@@ -1424,6 +1525,18 @@ function updateCreature(c) {
       if (tx === null) {
         const nc = gridNearest(c.x, c.y, sgCorpses, c.dna.sense, null);
         if (nc) { tx = nc.x; ty = nc.y; c.packTarget = null; c.status = 'SCAVENGING'; }
+      }
+      // BLOOD MOON: omnivores attack any weak herbivore (<20% energy)
+      if (tx === null && bloodMoon) {
+        const weakHerb = gridNearest(c.x, c.y, sgCreatures, c.dna.sense * 1.4,
+          o => o !== c && o.alive && o.dna.type === 'herbivore' && o.energy < 60);
+        if (weakHerb) { tx = weakHerb.x; ty = weakHerb.y; c.packTarget = weakHerb; c.status = 'BLOOD HUNT'; }
+      }
+      // DESPERATE: hunt herbivores to kill for corpse
+      if (tx === null && omniDesperate) {
+        const prey = gridNearest(c.x, c.y, sgCreatures, c.dna.sense * 1.2,
+          o => o !== c && o.alive && o.dna.type === 'herbivore');
+        if (prey) { tx = prey.x; ty = prey.y; c.packTarget = prey; c.status = 'DESPERATE HUNT'; }
       }
       // Eat food like herbivore
       if (tx === null) {
@@ -1448,9 +1561,20 @@ function updateCreature(c) {
     c.sprinting = false;
     const lists = window._simLists || {};
 
+    // Avoid contagious infected agents (carnivores avoid reasonably)
+    {
+      const infAgent = gridNearest(c.x, c.y, sgCreatures, c.dna.sense * 0.8,
+        o => o !== c && o.infectionStacks >= 10);
+      if (infAgent) {
+        const dx = c.x - infAgent.x, dy = c.y - infAgent.y;
+        const d = Math.sqrt(dx*dx+dy*dy)+0.001;
+        c.vx += (dx/d) * 0.3; c.vy += (dy/d) * 0.3;
+      }
+    }
+
     // Avoid safe omnivores — keep distance unless sleeping, mating, or <20% energy
-    // During FRENZY this avoidance is completely suppressed
-    if (frenziedTicks <= 0) {
+    // DESPERATE carnivores (<20% energy) will attack awake omnivores (50/50 outcome resolved in eating block)
+    if (frenziedTicks <= 0 && !carnDesperate) {
       const safeOmni = gridNearest(c.x, c.y, sgCreatures, c.dna.sense * 0.7,
         o => o !== c && o.dna.type === 'omnivore' && !o.sleeping && !o.matingWith && o.energy >= 60);
       if (safeOmni) {
@@ -1505,12 +1629,12 @@ function updateCreature(c) {
           o => o !== c && o.alive && o.dna.type === 'carnivore' && o.energy < 30 && o.age < c.age*0.5);
         if (wc) { tx = wc.x; ty = wc.y; c.packTarget = wc; c.status = 'CANNIBALISING'; }
       }
-      // Vulnerable omnivore: sleeping, mating, or <10% energy; OR any omnivore during FRENZY
+      // Vulnerable omnivore: sleeping, mating, or <10% energy; OR any omnivore during FRENZY or when carnivore desperate
       if (tx === null) {
         const vo = gridInCone(c.x,c.y,c.vx,c.vy, sgCreatures, CONE_RANGE, CONE_ARC,
           o => o !== c && o.alive && o.dna.type === 'omnivore'
-            && (frenziedTicks > 0 || o.sleeping || o.matingWith !== null || o.energy < 30));
-        if (vo) { tx = vo.x; ty = vo.y; c.packTarget = vo; c.status = frenziedTicks > 0 ? 'FRENZIED HUNT' : 'HUNTING OMNIVORE'; }
+            && (frenziedTicks > 0 || carnDesperate || o.sleeping || o.matingWith !== null || o.energy < 30));
+        if (vo) { tx = vo.x; ty = vo.y; c.packTarget = vo; c.status = frenziedTicks > 0 ? 'FRENZIED HUNT' : carnDesperate ? 'DESPERATE ATTACK' : 'HUNTING OMNIVORE'; }
       }
       // Corpses (omnidirectional smell)
       if (tx === null) {
@@ -1614,13 +1738,24 @@ function updateCreature(c) {
 
   const fs = params.flockStr / 10;
   if (c.dna.type === 'herbivore') {
+    // ── Fission-fusion: sociability gene controls grouping threshold ──────────
+    // Threatened + sociable → merge into tight group; food-scarce + sociable → split
+    const threatened = c.status === 'FLEEING' || c.status === 'PANICKING';
+    const foodScarce  = c.energy < 100;
+    // Base flock strength modified by sociability and situation
+    const fusionStr  = threatened ? c.dna.sociability * 1.6 : c.dna.sociability;
+    const fissionStr = foodScarce  ? (1 - c.dna.sociability) * 0.8 : 0;
+    // Desperate herbivore suppresses cohesion — breaks from herd to find food alone
+    const flockActive = c.desperateTicks === 0;
+
     // Herbivore flocking — safety in numbers
     if (sepN > 0) { c.vx += (sepX/sepN) * 0.35 * fs; c.vy += (sepY/sepN) * 0.35 * fs; }
-    if (aliN > 0) { c.vx += (aliX/aliN - c.vx) * 0.08 * fs; c.vy += (aliY/aliN - c.vy) * 0.08 * fs; }
-    if (cohN > 0) {
+    if (aliN > 0) { c.vx += (aliX/aliN - c.vx) * 0.08 * fs * fusionStr; c.vy += (aliY/aliN - c.vy) * 0.08 * fs * fusionStr; }
+    if (cohN > 0 && flockActive) {
       const cx = cohX/cohN - c.x, cy = cohY/cohN - c.y;
       const cd = Math.sqrt(cx*cx+cy*cy)+0.001;
-      if (tx === null) { c.vx += (cx/cd) * 0.12 * fs; c.vy += (cy/cd) * 0.12 * fs; }
+      const cohStr = Math.max(0, fusionStr - fissionStr);
+      if (tx === null) { c.vx += (cx/cd) * 0.12 * fs * cohStr; c.vy += (cy/cd) * 0.12 * fs * cohStr; }
     }
     // Shepherd pull: if a nearby sated omnivore is shepherding, be drawn toward it
     const lists = window._simLists || {};
@@ -1668,23 +1803,28 @@ function updateCreature(c) {
     c.sprinting = true;
   }
 
+  // Night debuff for carnivores: speed and sense reduced
+  const nightCarnDebuff = (window._isNight && c.dna.type === 'carnivore') ? (window._nightCarnDebuff || 0.72) : 1.0;
+  const effectiveMaxSpd = maxSpd * nightCarnDebuff;
   const spd = Math.sqrt(c.vx*c.vx + c.vy*c.vy);
-  if (spd > maxSpd) { c.vx = (c.vx/spd)*maxSpd; c.vy = (c.vy/spd)*maxSpd; }
+  if (spd > effectiveMaxSpd) { c.vx = (c.vx/spd)*effectiveMaxSpd; c.vy = (c.vy/spd)*effectiveMaxSpd; }
   c.x += c.vx; c.y += c.vy;
   if (c.x < 0) c.x += W; if (c.x > W) c.x -= W;
   if (c.y < 0) c.y += H; if (c.y > H) c.y -= H;
 
-  // Herbivores and omnivores eat food when below sated threshold
-  if ((c.dna.type === 'herbivore' || c.dna.type === 'omnivore') && !isSated) {
+  // Herbivores and omnivores eat food when below sated threshold and not eat-blocked
+  if ((c.dna.type === 'herbivore' || c.dna.type === 'omnivore') && !isSated && c.eatBlock === 0) {
     for (let i = foods.length - 1; i >= 0; i--) {
       if (dist(c, foods[i]) < c.dna.size + 4) {
         if (foods[i].toxic) {
-          // Toxic food: drains energy instead of restoring it
-          c.energy -= foods[i].energy * 0.8;
+          // Toxic food: heavy drain + becomes toxic + eat block
+          c.energy -= foods[i].energy * 1.4;
+          c.toxic = true;
+          c.toxicTicks = 600 + Math.floor(Math.random() * 400); // 10-17s at 60fps
+          c.eatBlock = Math.floor(300 + Math.random() * 300);   // 5-10s blocked
         } else {
           c.energy += foods[i].energy;
         }
-        // Record memory of this food location (even if toxic — they learn)
         c.memFoodX = foods[i].x; c.memFoodY = foods[i].y; c.memFoodAge = 0;
         foods.splice(i, 1);
         break;
@@ -1693,20 +1833,51 @@ function updateCreature(c) {
   }
   // Age memory each tick
   if (c.memFoodX !== null) c.memFoodAge++;
-  // Omnivores scavenge corpses (all types)
-  if (c.dna.type === 'omnivore' && !isSated) {
+  // Omnivores scavenge corpses (all types) — toxic corpses spread toxicity
+  if (c.dna.type === 'omnivore' && !isSated && c.eatBlock === 0) {
     for (let i = corpses.length - 1; i >= 0; i--) {
       if (dist(c, corpses[i]) < c.dna.size + 5) {
-        c.energy += corpses[i].energy;
+        if (corpses[i].toxic) {
+          c.energy -= corpses[i].energy * 0.5;
+          c.toxic = true;
+          c.toxicTicks = 500 + Math.floor(Math.random() * 300);
+          c.eatBlock = Math.floor(240 + Math.random() * 240);
+        } else {
+          c.energy += corpses[i].energy;
+        }
         corpses.splice(i, 1);
         break;
       }
     }
   }
 
+  // Desperate omnivore: kill nearby herbivore, trigger panic in witnesses
+  if (c.dna.type === 'omnivore' && (c.status === 'DESPERATE HUNT' || c.status === 'BLOOD HUNT') && c.packTarget && c.packTarget.alive) {
+    const prey = c.packTarget;
+    if (dist(c, prey) < c.dna.size + prey.dna.size + 2) {
+      // Kill herbivore, make corpse
+      const wasAt = { x: prey.x, y: prey.y };
+      prey.alive = false;
+      const newCorpse = { x: prey.x, y: prey.y, energy: prey.energy * 0.5 + 10, decay: 0,
+                          fromType: 'herbivore', toxic: c.toxic };
+      corpses.push(newCorpse);
+      if (pheroCarn) depositPhero(pheroCarn, prey.x, prey.y, 0.7);
+      c.packTarget = null;
+      // Panic: all herbivores within sense range that witness the kill flee
+      const nearHerbs = sgCreatures ? sgCreatures.query(wasAt.x, wasAt.y, c.dna.sense * 1.4) : [];
+      for (const h of nearHerbs) {
+        if (h.alive && h.dna.type === 'herbivore') {
+          h.panicTicks = 180 + Math.floor(Math.random() * 120);
+          h.sleeping = false; h.sleepTicks = 0;
+          const ang = Math.atan2(h.y - wasAt.y, h.x - wasAt.x);
+          h.vx = Math.cos(ang) * h.dna.speed * 2; h.vy = Math.sin(ang) * h.dna.speed * 2;
+        }
+      }
+    }
+  }
+
   // Carnivores hunt ONLY when below sated threshold (90%)
   if (c.dna.type === 'carnivore' && !isSated) {
-    // Record hunt attempt periodically while actively chasing
     if (c.packTarget && c.packTarget.alive && c.age % 60 === 0) {
       const pKey = c.packTarget.dna.type + (c.packTarget.sleeping ? '_sleep' : c.packTarget.matingWith ? '_mating' : '');
       c.memHuntAttempts[pKey] = (c.memHuntAttempts[pKey] || 0) + 1;
@@ -1714,25 +1885,48 @@ function updateCreature(c) {
     let ate = false;
     for (const prey of creatures) {
       if (!prey.alive || prey === c) continue;
-      const isPurple       = prey.matingWith !== null;
-      const isHerbivore    = prey.dna.type === 'herbivore';
-      const isSleeping     = prey.sleeping;
-      const isWeakCarnivore = prey.dna.type === 'carnivore'
-                              && prey.energy < 30 && prey.age < c.age * 0.5;
-      const isVulnOmnivore = prey.dna.type === 'omnivore'
-                              && (frenziedTicks > 0 || prey.sleeping || prey.matingWith !== null || prey.energy < 30);
+      const isPurple        = prey.matingWith !== null;
+      const isHerbivore     = prey.dna.type === 'herbivore';
+      const isSleeping      = prey.sleeping;
+      const isWeakCarnivore = prey.dna.type === 'carnivore' && prey.energy < 30 && prey.age < c.age * 0.5;
+      // Desperate carnivore can attack any omnivore — 50/50 resolved below
+      const isVulnOmnivore  = prey.dna.type === 'omnivore'
+                              && (frenziedTicks > 0 || carnDesperate || prey.sleeping || prey.matingWith !== null || prey.energy < 30);
       const edible = isPurple || isHerbivore || (isSleeping && prey !== c) || isWeakCarnivore || isVulnOmnivore;
       if (edible && dist(c, prey) < c.dna.size + prey.dna.size) {
+        // Desperate carnivore vs awake omnivore: 50/50 — omnivore might win
+        const desperateVsAwakeOmni = carnDesperate && prey.dna.type === 'omnivore'
+                                     && !prey.sleeping && !prey.matingWith && prey.energy >= 30
+                                     && frenziedTicks <= 0;
+        if (desperateVsAwakeOmni) {
+          if (Math.random() < 0.5) {
+            // Omnivore wins — kills carnivore, gains heritable stat boost
+            c.alive = false;
+            corpses.push({ x: c.x, y: c.y, energy: c.energy * 0.5, decay: 0,
+                           fromType: 'carnivore', toxic: c.toxic });
+            // Omnivore heritable gains (small, capped)
+            prey.dna.aggression  = Math.min(1.0, prey.dna.aggression  + 0.015);
+            prey.dna.fertility   = Math.min(0.01, prey.dna.fertility  + 0.00008);
+            prey.dna.size        = Math.min(12,   prey.dna.size       + 0.05);
+            prey.energy          = Math.min(300,  prey.energy         + c.energy * 0.4);
+            break;
+          }
+          // else carnivore wins — falls through to normal kill below
+        }
+        if (!c.alive) break; // carnivore was killed above
+        // Eat prey — spread toxicity if prey was toxic
+        if (prey.toxic) {
+          c.toxic = true;
+          c.toxicTicks = 400 + Math.floor(Math.random() * 200);
+          c.eatBlock   = Math.floor(180 + Math.random() * 180);
+        }
         c.energy += prey.energy * 0.6;
         if (prey.matingWith) { prey.matingWith.matingWith = null; prey.matingWith.matingTicks = 0; }
-        // Wake nearby sleepers if this prey was asleep
         if (prey.sleeping) {
           for (const neighbour of creatures) {
             if (neighbour !== prey && neighbour.sleeping && dist(neighbour, prey) < neighbour.dna.sense) {
-              neighbour.sleeping = false;
-              neighbour.sleepTicks = 0;
+              neighbour.sleeping = false; neighbour.sleepTicks = 0;
               neighbour.sleepCooldown = 400 + Math.floor(Math.random() * 300);
-              // Scatter in random direction at high speed
               const ang = Math.random() * Math.PI * 2;
               neighbour.vx = Math.cos(ang) * neighbour.dna.speed * 2;
               neighbour.vy = Math.sin(ang) * neighbour.dna.speed * 2;
@@ -1740,20 +1934,28 @@ function updateCreature(c) {
             }
           }
         }
-        // Record successful hunt in memory
         const pKey = prey.dna.type + (prey.sleeping ? '_sleep' : prey.matingWith ? '_mating' : '');
-        c.memHuntWins[pKey]    = (c.memHuntWins[pKey]    || 0) + 1;
-        c.memHuntAttempts[pKey]= (c.memHuntAttempts[pKey]|| 0) + 1;
+        c.memHuntWins[pKey]     = (c.memHuntWins[pKey]     || 0) + 1;
+        c.memHuntAttempts[pKey] = (c.memHuntAttempts[pKey] || 0) + 1;
+        // Leave toxic corpse if prey was toxic
+        corpses.push({ x: prey.x, y: prey.y, energy: 0, decay: 580, fromType: prey.dna.type, toxic: prey.toxic });
         prey.alive = false;
         ate = true;
         break;
       }
     }
-    // Also scavenge nearby corpses
-    if (!ate) {
+    // Scavenge nearby corpses — spread toxicity
+    if (!ate && c.eatBlock === 0) {
       for (let i = corpses.length - 1; i >= 0; i--) {
         if (dist(c, corpses[i]) < c.dna.size + 5) {
-          c.energy += corpses[i].energy;
+          if (corpses[i].toxic) {
+            c.toxic = true;
+            c.toxicTicks = 400 + Math.floor(Math.random() * 200);
+            c.eatBlock   = Math.floor(180 + Math.random() * 180);
+            c.energy -= corpses[i].energy * 0.3;
+          } else {
+            c.energy += corpses[i].energy;
+          }
           corpses.splice(i, 1);
           break;
         }
@@ -1784,6 +1986,70 @@ function updateCreature(c) {
 
 function updateSim() {
   tick++;
+
+  // ── Day/Night cycle ─────────────────────────────────────────────────────────
+  dayTick++;
+  const cycleLen = isNight ? NIGHT_LENGTH : DAY_LENGTH;
+  if (dayTick >= cycleLen) {
+    dayTick = 0;
+    isNight = !isNight;
+    if (isNight) {
+      const isBloodMoon = Math.random() < 0.1;
+      window._bloodMoon = isBloodMoon;
+      if (isBloodMoon) {
+        showWeatherBanner('🌕 BLOOD MOON', '#ff2222', 200,
+          'Carnivores frenzied. Herbivores breed wildly. Omnivores hunt the weak.');
+      } else {
+        showWeatherBanner('🌙 NIGHT FALLS', '#6060cc', 80, 'Fertility rises. Carnivores slow. Energy costs ease.');
+      }
+    } else {
+      window._bloodMoon = false;
+      showWeatherBanner('☀ DAWN BREAKS', '#ffcc44', 80, 'Food grows faster. Activity peaks.');
+    }
+  }
+  const bloodMoon = !!(window._bloodMoon && isNight);
+  window._isNight = isNight;
+  window._nightFertMult   = bloodMoon ? 4.0 : (isNight ? 1.5 : 1.0);
+  window._nightFoodMult   = isNight ? 0.6 : 1.4;
+  window._nightCarnDebuff = (isNight && !bloodMoon) ? 0.72 : 1.0;
+  // Blood moon: keep carnivores frenzied throughout
+  if (bloodMoon && frenziedTicks <= 0) frenziedTicks = 200;
+
+  // ── Infection spread from plague zones ───────────────────────────────────
+  for (let pz = plagueZones.length - 1; pz >= 0; pz--) {
+    const zone = plagueZones[pz];
+    zone.ticksLeft--;
+    if (zone.ticksLeft <= 0) { plagueZones.splice(pz, 1); continue; }
+    // Every 20 ticks, infect creatures in zone
+    if (tick % 20 === 0) {
+      const inZone = sgCreatures ? sgCreatures.query(zone.x, zone.y, zone.r) : [];
+      for (const c of inZone) {
+        if (!c.alive || c.infStackCooldown > 0) continue;
+        c.infectionStacks = Math.min(15, c.infectionStacks + 1);
+        c.infStackCooldown = 90; // 1.5s cooldown between stack gains
+        if (c.infectionStacks >= 15) {
+          c.alive = false;
+          corpses.push({ x: c.x, y: c.y, energy: 10, decay: 0, fromType: c.dna.type, toxic: false });
+        }
+      }
+    }
+  }
+  // Contagious creatures (≥10 stacks) spread to nearby agents every 120 ticks
+  if (tick % 120 === 0) {
+    for (const c of creatures) {
+      if (!c.alive || c.infectionStacks < 10) continue;
+      const nearby = sgCreatures ? sgCreatures.query(c.x, c.y, 60) : [];
+      for (const other of nearby) {
+        if (other === c || !other.alive || other.infStackCooldown > 0) continue;
+        other.infectionStacks = Math.min(15, other.infectionStacks + 1);
+        other.infStackCooldown = 90;
+        if (other.infectionStacks >= 15) {
+          other.alive = false;
+          corpses.push({ x: other.x, y: other.y, energy: 10, decay: 0, fromType: other.dna.type, toxic: false });
+        }
+      }
+    }
+  }
 
   // ── Seasons ──────────────────────────────────────────────────────────────────
   if (longWinterActive) {
@@ -1860,10 +2126,10 @@ function updateSim() {
   // Store on window so creature update can access
   window._seasonMetaMult = effectiveMetaMult;
 
-  // Food grows by spreading from existing food — no random teleport spawning
+  // Food grows by spreading — boosted by day, reduced at night
+  const dayFoodMult = window._nightFoodMult || 1.0;
   if (foods.length < params.maxFood && foods.length > 0) {
-    // Each tick, each food pellet has a small chance to sprout a neighbour nearby
-    const growthChance = params.foodRate * 0.0003 * effectiveFoodMult; // slider controls spread speed
+    const growthChance = params.foodRate * 0.0003 * effectiveFoodMult * dayFoodMult;
     for (let i = 0; i < foods.length && foods.length < params.maxFood; i++) {
       if (Math.random() < growthChance) {
         const parent = foods[i];
@@ -1979,7 +2245,7 @@ function updateSim() {
       if (pheroOmni) depositPhero(pheroOmni, corp.x, corp.y, strength * 0.7);
     }
   }
-  corpses = corpses.filter(corp => corp.decay < 600); // 2× longer life
+  corpses = corpses.filter(corp => corp.decay < 1200); // extended for visibility
 
   creatures = creatures.filter(c => c.alive || (c.age++ < 60));
 
@@ -2044,9 +2310,11 @@ function drawShape(ctx2, cx, cy, r, sides) {
   }
 }
 
-function drawCreature(c) {
+function drawCreature(c, depthDim) {
   const alive = c.alive;
-  const alpha = alive ? 1.0 : Math.max(0, 1 - (c.age - 3940) / 60);
+  const alpha = alive
+    ? (depthDim ? 0.45 : 1.0)   // sleeping/inactive recede to 45% — visible but background
+    : Math.max(0, 1 - (c.age - 3940) / 60);
   if (alpha <= 0) return;
   // Viewport culling: skip expensive drawing for off-screen creatures
   const cullR = c.dna.size * 4 + 12; // generous margin for glow/ring
@@ -2350,6 +2618,72 @@ function drawCreature(c) {
     ctx.shadowBlur = 0;
   }
 
+  // ── TOXIC: bright green flash ────────────────────────────────────────────────
+  if (alive && c.toxic) {
+    // Flash: alternates between bright and dim at ~4Hz
+    const toxFlash = Math.sin(tick * 0.4) > 0;
+    if (toxFlash) {
+      // Full body flash — bright lime overlay
+      ctx.beginPath();
+      drawShape(ctx, c.x, c.y, r * 1.15, bodyShape);
+      ctx.fillStyle = 'rgba(130,255,20,0.65)';
+      ctx.shadowColor = '#84ff14';
+      ctx.shadowBlur = 14;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+    // Constant green ring regardless of flash phase
+    const toxPulse = 0.5 + 0.5 * Math.sin(tick * 0.15);
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, r + 3 + toxPulse * 2, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(130,255,20,${0.55 + toxPulse * 0.35})`;
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([2, 3]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // ── INFECTION: yellow flash, intensity by stack count ────────────────────────
+  if (alive && c.infectionStacks >= 5) {
+    const infPct   = Math.min(1, (c.infectionStacks - 5) / 10); // 0 at 5 stacks, 1 at 15
+    const infPulse = 0.5 + 0.5 * Math.sin(tick * 0.12 + c.x * 0.03);
+    // Yellow flash speed and intensity scale with stacks
+    const flashRate = 0.15 + infPct * 0.45; // slow at low stacks, fast at high
+    const infFlash  = Math.sin(tick * flashRate) > (0.6 - infPct * 0.5); // more frequent flashes at high stacks
+    if (infFlash) {
+      ctx.beginPath();
+      drawShape(ctx, c.x, c.y, r * 1.12, bodyShape);
+      ctx.fillStyle = `rgba(255,220,0,${0.3 + infPct * 0.45})`;
+      ctx.shadowColor = `rgba(255,200,0,${0.5 + infPct * 0.5})`;
+      ctx.shadowBlur = 8 + infPct * 10;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+    // Yellow haze aura
+    const ig = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, r * 3.5);
+    ig.addColorStop(0, `rgba(255,200,0,${(0.06 + infPct * 0.12) * (0.5 + infPulse * 0.5)})`);
+    ig.addColorStop(1, 'rgba(255,200,0,0)');
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, r * 3.5, 0, Math.PI * 2);
+    ctx.fillStyle = ig; ctx.fill();
+    // Stack counter
+    ctx.globalAlpha = alpha * 0.9;
+    ctx.font = `7px monospace`;
+    ctx.textAlign = 'center';
+    ctx.fillStyle = c.infectionStacks >= 10 ? '#ffdd00' : '#ccaa00';
+    ctx.fillText(`☣${c.infectionStacks}`, c.x, c.y + r + 10);
+    // Contagious outer ring (≥10 stacks)
+    if (c.infectionStacks >= 10) {
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, r + 7 + infPulse * 3, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(255,220,0,${0.4 + infPct * 0.4})`;
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([3, 4]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
+
   ctx.restore();
 }
 
@@ -2422,14 +2756,17 @@ function drawFood(f) {
 }
 
 function drawCorpse(corp) {
-  const age = corp.decay / 600; // 0=fresh, 1=gone — matches 600-tick lifetime
+  const age = corp.decay / 1200;
   const alpha = 1 - age * 0.8;
   const r = 3 + (1 - age) * 2;
   ctx.save();
-  ctx.globalAlpha = alpha;
+  ctx.globalAlpha = alpha * 0.55; // Recede corpses in depth layer — visible but background
   ctx.beginPath();
   ctx.arc(corp.x, corp.y, r, 0, Math.PI * 2);
-  ctx.fillStyle = `hsl(30,${Math.round(40 - age*30)}%,${Math.round(18 + age*8)}%)`;
+  // Toxic corpse: green-tinted
+  ctx.fillStyle = corp.toxic
+    ? `hsl(85,${Math.round(50 - age*30)}%,${Math.round(15 + age*8)}%)`
+    : `hsl(30,${Math.round(40 - age*30)}%,${Math.round(18 + age*8)}%)`;
   ctx.shadowColor = 'rgba(80,40,0,0.3)';
   ctx.shadowBlur = 4;
   ctx.fill();
@@ -2541,6 +2878,34 @@ function drawChart() {
   line(history.f, '#ffd166');
 }
 
+function drawPlagueZone(pz) {
+  const progress = 1 - pz.ticksLeft / 600; // 0=fresh, 1=expiring
+  const alpha = (1 - progress * 0.7) * 0.55;
+  const pulse = 0.5 + 0.5 * Math.sin(tick * 0.06);
+  ctx.save();
+  // Filled zone
+  const g = ctx.createRadialGradient(pz.x, pz.y, 0, pz.x, pz.y, pz.r);
+  g.addColorStop(0, `rgba(180,60,240,${alpha * 0.35})`);
+  g.addColorStop(0.6, `rgba(140,40,200,${alpha * 0.15})`);
+  g.addColorStop(1, `rgba(100,20,160,0)`);
+  ctx.beginPath(); ctx.arc(pz.x, pz.y, pz.r, 0, Math.PI * 2);
+  ctx.fillStyle = g; ctx.fill();
+  // Pulsing border
+  ctx.beginPath(); ctx.arc(pz.x, pz.y, pz.r, 0, Math.PI * 2);
+  ctx.strokeStyle = `rgba(200,80,255,${0.3 + pulse * 0.3})`;
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([6, 5]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  // Label
+  ctx.globalAlpha = alpha * 1.2;
+  ctx.fillStyle = '#e040fb';
+  ctx.font = '9px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('☣ PLAGUE', pz.x, pz.y - pz.r - 6);
+  ctx.restore();
+}
+
 function render() {
   const W = canvas.width, H = canvas.height;
   ctx.clearRect(0, 0, W, H);
@@ -2556,6 +2921,28 @@ function render() {
   };
   const st = seasonTints[getCurrentSeason().name];
   if (st) { ctx.fillStyle = st; ctx.fillRect(0, 0, W, H); }
+
+  // Day/Night tint overlay
+  if (window._isNight) {
+    const bm = !!(window._bloodMoon);
+    ctx.fillStyle = bm ? 'rgba(40,0,0,0.28)' : 'rgba(10,5,40,0.22)';
+    ctx.fillRect(0, 0, W, H);
+    const moonG = ctx.createRadialGradient(W * 0.85, H * 0.08, 0, W * 0.85, H * 0.08, H * 0.25);
+    if (bm) {
+      moonG.addColorStop(0, 'rgba(255,60,40,0.10)');
+      moonG.addColorStop(1, 'rgba(0,0,0,0)');
+    } else {
+      moonG.addColorStop(0, 'rgba(160,160,255,0.06)');
+      moonG.addColorStop(1, 'rgba(0,0,0,0)');
+    }
+    ctx.fillStyle = moonG; ctx.fillRect(0, 0, W, H);
+  } else {
+    // Subtle sun warmth during day
+    const sunG = ctx.createRadialGradient(W * 0.5, 0, 0, W * 0.5, 0, H * 0.6);
+    sunG.addColorStop(0, 'rgba(255,220,100,0.03)');
+    sunG.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = sunG; ctx.fillRect(0, 0, W, H);
+  }
 
   // Active weather overlay
   if (activeWeather) {
@@ -2617,14 +3004,21 @@ function render() {
     ctx.setLineDash([]);
   }
 
-  for (const corp of corpses) drawCorpse(corp);
-  // Draw craters under everything
+  // ── Ecological depth layers ───────────────────────────────────────────────────
+  // Layer 1: ground — craters, plague zones
   for (const cr of craters) drawCrater(cr);
-  // Draw meteor warnings
-  for (const m of meteors) drawMeteorWarning(m);
-  for (const s of seeds) drawSeed(s);
+  for (const pz of plagueZones) drawPlagueZone(pz);
+  // Layer 2: food + seeds
   for (const f of foods) drawFood(f);
-  for (const c of creatures) drawCreature(c);
+  for (const s of seeds) drawSeed(s);
+  // Layer 3: mid — corpses (desaturated, receded)
+  for (const corp of corpses) drawCorpse(corp);
+  // Layer 4: inactive creatures (sleeping, not moving) — dimmed but visible
+  for (const c of creatures) { if (c.sleeping || !c.alive) drawCreature(c, true); }
+  // Layer 5: active creatures on top — full brightness
+  for (const c of creatures) { if (!c.sleeping && c.alive) drawCreature(c, false); }
+  // Layer 6: meteor warnings above creatures
+  for (const m of meteors) drawMeteorWarning(m);
 
   // Cinematic vignette — drawn last, above everything
   const vign = ctx.createRadialGradient(W/2, H/2, H * 0.3, W/2, H/2, H * 0.85);
@@ -2708,15 +3102,7 @@ function updateUI() {
   }
   document.getElementById('tickNum').textContent = tick;
 
-  // Season display
-  const seasonEl = document.getElementById('seasonDisplay');
-  if (seasonEl) {
-    const s = getCurrentSeason();
-    seasonEl.textContent = s.emoji + ' ' + s.name;
-    seasonEl.style.color = s.color;
-    seasonEl.style.fontSize = '10px';
-    seasonEl.style.letterSpacing = '1px';
-  }
+  // seasonDisplay updated in season bar block above
   // Season bar
   const barFill = document.getElementById('seasonBarFill');
   if (barFill) {
@@ -2724,6 +3110,41 @@ function updateUI() {
     barFill.style.width = pct + '%';
     barFill.style.background = getCurrentSeason().barColor;
     barFill.style.boxShadow = `0 0 6px ${getCurrentSeason().barColor}88`;
+  }
+  // Season display (clean — no day/night mixed in)
+  const seasonEl = document.getElementById('seasonDisplay');
+  if (seasonEl) {
+    const s = getCurrentSeason();
+    seasonEl.textContent = s.emoji + ' ' + s.name;
+    seasonEl.style.color = s.color;
+  }
+
+  // Day/Night separate stat + bar
+  const dayNightEl = document.getElementById('dayNightDisplay');
+  if (dayNightEl) {
+    const cycleLen = isNight ? NIGHT_LENGTH : DAY_LENGTH;
+    const phasePct = Math.round((dayTick / cycleLen) * 100);
+    const isBloodMoon = window._bloodMoon || false;
+    if (isBloodMoon) {
+      dayNightEl.textContent = '🌕';
+      dayNightEl.style.color = '#ff4444';
+    } else {
+      dayNightEl.textContent = isNight ? '🌙' : '☀';
+      dayNightEl.style.color = isNight ? '#8888ee' : '#ffcc44';
+    }
+    dayNightEl.parentElement.querySelector('.stat-lbl').textContent =
+      isBloodMoon ? 'Blood Moon' : (isNight ? `Night ${phasePct}%` : `Day ${phasePct}%`);
+  }
+  const dayNightFill = document.getElementById('dayNightBarFill');
+  if (dayNightFill) {
+    const cycleLen = isNight ? NIGHT_LENGTH : DAY_LENGTH;
+    const pct = (dayTick / cycleLen) * 100;
+    const isBloodMoon = window._bloodMoon || false;
+    dayNightFill.style.width = pct + '%';
+    dayNightFill.style.background = isBloodMoon ? '#ff2222'
+                                   : isNight     ? '#6666cc' : '#ffcc44';
+    dayNightFill.style.boxShadow = isBloodMoon ? '0 0 6px #ff222288'
+                                 : isNight     ? '0 0 4px #6666cc88' : '0 0 4px #ffcc4488';
   }
 
   if (selectedCreature) {
@@ -2778,7 +3199,11 @@ function updateUI() {
         <b>FERTILITY:</b> ${(d.fertility*1000).toFixed(2)}‰<br>
         <b>METABOLISM:</b> ${d.metabolism.toFixed(3)}<br>
         <b>AGGRESSION:</b> ${d.aggression.toFixed(2)}${staminaBar}<br>
+        <b>SOCIABILITY:</b> ${(d.sociability??0.5).toFixed(2)}<br>
         <b>SPECIES:</b> <b style="opacity:0.5">${c.speciesId ? c.speciesId.slice(3,8) : '?'}</b>${huntMemHTML}${stateTag}
+        ${c.toxic ? '<br><b style="color:#84cc16">☠ TOXIC</b>' : ''}
+        ${c.infectionStacks > 0 ? `<br><b style="color:#c084fc">☣ INFECTION: ${c.infectionStacks}/15 stacks</b>` : ''}
+        ${c.eatBlock > 0 ? `<br><b style="color:#888">🚫 EAT BLOCKED: ${c.eatBlock}t</b>` : ''}
       `;
     }
   }
@@ -2874,6 +3299,10 @@ canvas.addEventListener('click', e => {
   const mx = e.clientX - rect.left, my = e.clientY - rect.top;
 
   // ── Deus Mode routing ───────────────────────────────────────────────────────
+  if (deusMode === 'plague') {
+    placePlagueZone(mx, my);
+    return;
+  }
   if (deusMode === 'meteor') {
     meteors.push({ x: mx, y: my, countdown: METEOR_COUNTDOWN, maxCountdown: METEOR_COUNTDOWN });
     clearDeusArmed();
@@ -3072,7 +3501,33 @@ function deusLongWinter() {
   showWeatherBanner('🧊 LONG WINTER BEGINS', '#a0b4f0', 200, 'An endless freeze descends. No thaw in sight.');
 }
 
+// Plague wind is placed by click — arm it like meteor
+let plagueWindArmed = false;
+function deusArmPlagueWind() {
+  const btn = document.getElementById('deusPlaguebtn') || document.getElementById('deusplagueBtn');
+  plagueWindArmed = !plagueWindArmed;
+  if (btn) btn.classList.toggle('armed', plagueWindArmed);
+  if (plagueWindArmed) {
+    deusMode = 'plague';
+    showWeatherBanner('💨 PLAGUE WIND ARMED', '#c084fc', 80, 'Click canvas to place plague zone');
+  } else {
+    deusMode = null;
+  }
+}
+
+function placePlagueZone(x, y) {
+  plagueZones.push({ x, y, r: plagueRadius, ticksLeft: 600 });
+  activeWeather = { event: WEATHER_EVENTS.find(e => e.name === 'PLAGUE WIND'), ticksLeft: 600 };
+  showWeatherBanner('💨 PLAGUE ZONE', '#c084fc', 100,
+    'Infection spreads within the zone. 5 stacks = sick, 10 = contagious, 15 = death.');
+  updateDeusWeatherButtons();
+  plagueWindArmed = false; deusMode = null;
+  const btn = document.getElementById('deusPlaguebtn') || document.getElementById('deusplagueBtn');
+  if (btn) btn.classList.remove('armed');
+}
+
 function deusTriggerWeather(name) {
+  if (name === 'PLAGUE WIND') { deusArmPlagueWind(); return; }
   const ev = WEATHER_EVENTS.find(e => e.name === name);
   if (!ev) return;
   activeWeather = { event: ev, ticksLeft: ev.duration };
