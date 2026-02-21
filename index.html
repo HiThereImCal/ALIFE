@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>ALIFE — Artificial Life Simulator</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Syncopate:wght@400;700&display=swap');
@@ -366,8 +366,7 @@
     .stat-hide-mobile { display: none; }
 
     /* Canvas fills all space, panel hidden */
-    .main { position: relative; }
-    canvas { width: 100% !important; }
+    .main { position: relative; overflow: hidden; }
     .panel { display: none; }
 
     /* Hide desktop footer */
@@ -3528,13 +3527,20 @@ function resize() {
   const header = document.querySelector('header');
   const footer = document.querySelector('footer');
   const tabBar = document.getElementById('mobileTabBar');
+
   if (mobile) {
     const tabH = tabBar ? tabBar.offsetHeight : 52;
-    canvas.width  = window.innerWidth;
-    canvas.height = window.innerHeight - header.offsetHeight - tabH;
-    // mobile chart canvas is hidden but keep it valid
+    const w    = window.innerWidth;
+    const h    = window.innerHeight - header.offsetHeight - tabH;
+    canvas.width        = w;
+    canvas.height       = h;
+    canvas.style.width  = w + 'px';
+    canvas.style.height = h + 'px';
+    ctx.setTransform(1, 0, 0, 1, 0, 0); // reset any prior scaling
     chartCanvas.width = 180; chartCanvas.height = 60;
   } else {
+    canvas.style.width  = '';
+    canvas.style.height = '';
     canvas.width  = window.innerWidth - panel.offsetWidth;
     canvas.height = window.innerHeight - header.offsetHeight - footer.offsetHeight;
     chartCanvas.width  = panel.offsetWidth - 24;
@@ -3543,14 +3549,19 @@ function resize() {
   initPhero();
 }
 
-// Touch support for canvas — translate touch to same coordinate space as clicks
+// Touch support — translate touches directly into the click handler's coordinate space
 canvas.addEventListener('touchstart', e => {
   e.preventDefault();
   const touch = e.touches[0];
+  // Fire a synthetic click with the touch coordinates so the existing click handler works
   const rect = canvas.getBoundingClientRect();
   const mx = touch.clientX - rect.left;
   const my = touch.clientY - rect.top;
-  canvas.dispatchEvent(new MouseEvent('click', { clientX: touch.clientX, clientY: touch.clientY, bubbles: true }));
+  // Directly invoke the same logic as the click handler using computed canvas coords
+  canvas.dispatchEvent(new MouseEvent('click', {
+    bubbles: true, cancelable: true,
+    clientX: touch.clientX, clientY: touch.clientY
+  }));
 }, { passive: false });
 
 // Orientation change — re-run resize after a tick to get correct dimensions
