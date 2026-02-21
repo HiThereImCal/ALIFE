@@ -352,131 +352,105 @@
   /* ── Mobile layout ──────────────────────────────────────────────────────────── */
   @media (max-width: 768px) {
 
-    /* Slim the header */
-    header {
-      padding: 7px 12px;
-      gap: 8px;
-    }
+    header { padding: 7px 12px; gap: 6px; }
     .logo { font-size: 13px; letter-spacing: 3px; }
     .by-cal-link { display: none; }
-    .header-stats { gap: 10px; }
-    .stat-val { font-size: 13px; }
+    .header-stats { gap: 8px; }
+    .stat-val { font-size: 12px; }
     .stat-lbl { font-size: 7px; letter-spacing: 1px; }
-    /* Hide Seeds & Generation & Tick on mobile — keep H/C/O/F/Season */
     .stat-hide-mobile { display: none; }
-
-    /* Canvas fills all space, panel hidden */
-    .main { position: relative; overflow: hidden; }
-    .panel { display: none; }
-
-    /* Hide desktop footer */
     footer { display: none; }
 
-    /* Season bar spans full width on mobile */
+    /* Season bar full width */
     #seasonBar { right: 0; }
 
-    /* Weather banner adjusts for smaller screen */
+    /* Canvas fills all available space */
+    .main { position: relative; overflow: hidden; }
+
+    /* Panel becomes a fixed right drawer, hidden by default */
+    .panel {
+      position: fixed;
+      top: 0; right: 0; bottom: 0;
+      width: 260px;
+      transform: translateX(100%);
+      transition: transform 0.28s cubic-bezier(0.4,0,0.2,1);
+      z-index: 300;
+      border-left: 1px solid var(--border);
+    }
+    .panel.drawer-open {
+      transform: translateX(0);
+    }
+
+    /* Hamburger toggle button */
+    #drawerToggle {
+      position: fixed;
+      top: 50%;
+      right: 0;
+      transform: translateY(-50%);
+      z-index: 400;
+      width: 28px; height: 52px;
+      background: rgba(8,10,20,0.92);
+      backdrop-filter: blur(10px);
+      border: 1px solid var(--border);
+      border-right: none;
+      border-radius: 6px 0 0 6px;
+      cursor: pointer;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 4px;
+      transition: border-color 0.15s, right 0.28s cubic-bezier(0.4,0,0.2,1);
+      -webkit-tap-highlight-color: transparent;
+    }
+    #drawerToggle.open {
+      right: 260px;
+    }
+    #drawerToggle span {
+      display: block; width: 12px; height: 1.5px;
+      background: var(--accent); border-radius: 1px;
+      transition: all 0.2s;
+    }
+    #drawerToggle.open span:nth-child(1) { transform: rotate(45deg) translate(2px, 4px); }
+    #drawerToggle.open span:nth-child(2) { opacity: 0; }
+    #drawerToggle.open span:nth-child(3) { transform: rotate(-45deg) translate(2px, -4px); }
+
+    /* Backdrop when drawer open */
+    #drawerBackdrop {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 290;
+    }
+    #drawerBackdrop.visible { display: block; }
+
+    /* Larger tap targets inside panel */
+    .panel .btn { padding: 10px 10px; font-size: 10px; }
+    .panel input[type=range] { width: 100px; height: 4px; }
+    .panel input[type=range]::-webkit-slider-thumb { width: 18px; height: 18px; }
+
+    /* Weather banner */
     #weatherBanner {
-      top: auto; bottom: 70px;
+      top: auto; bottom: 12px;
       font-size: 9px; letter-spacing: 2px;
       padding: 7px 14px 6px; min-width: 0; width: 85%;
     }
     #weatherBannerSub { font-size: 7px; }
-
-    /* ── Bottom tab bar ── */
-    #mobileTabBar {
-      position: fixed; bottom: 0; left: 0; right: 0;
-      height: 52px;
-      background: rgba(6,8,16,0.96);
-      backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
-      border-top: 1px solid var(--border);
-      display: flex; z-index: 200;
-    }
-    .mob-tab {
-      flex: 1; display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
-      gap: 3px; font-size: 7px; letter-spacing: 1px;
-      color: var(--text); text-transform: uppercase;
-      background: transparent; border: none; cursor: pointer;
-      transition: color 0.15s; padding: 0;
-      -webkit-tap-highlight-color: transparent;
-    }
-    .mob-tab .mob-icon { font-size: 16px; line-height: 1; }
-    .mob-tab.active { color: var(--accent); }
-    .mob-tab.active .mob-icon { filter: drop-shadow(0 0 6px var(--accent)); }
-    .mob-tab.deus-tab.active { color: var(--accent2); }
-    .mob-tab.deus-tab.active .mob-icon { filter: drop-shadow(0 0 6px var(--accent2)); }
-
-    /* ── Bottom sheet ── */
-    #mobileSheet {
-      position: fixed; bottom: 52px; left: 0; right: 0;
-      background: rgba(8,10,20,0.97);
-      backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
-      border-top: 1px solid var(--border);
-      z-index: 190; overflow: hidden;
-      max-height: 0; transition: max-height 0.3s cubic-bezier(0.4,0,0.2,1);
-    }
-    #mobileSheet.open { max-height: 55vh; }
-    @media (orientation: landscape) {
-      #mobileSheet.open { max-height: 65vh; }
-    }
-    .mob-sheet-inner {
-      padding: 14px 16px 10px;
-      overflow-y: auto; max-height: 55vh;
-    }
-    @media (orientation: landscape) {
-      .mob-sheet-inner { max-height: 65vh; }
-    }
-    .mob-sheet-inner::-webkit-scrollbar { width: 2px; }
-    .mob-sheet-inner::-webkit-scrollbar-thumb { background: rgba(0,245,196,0.2); }
-
-    /* Sheet section headings */
-    .mob-heading {
-      font-family: 'Syncopate', sans-serif;
-      font-size: 7px; letter-spacing: 3px; color: var(--accent);
-      text-transform: uppercase; margin-bottom: 10px;
-    }
-    .mob-heading.red { color: var(--accent2); text-shadow: 0 0 8px rgba(255,77,109,0.4); }
-
-    /* Larger tap targets for mobile buttons */
-    #mobileSheet .btn { padding: 10px 12px; font-size: 11px; margin-bottom: 8px; }
-    #mobileSheet .control-row { margin-bottom: 12px; font-size: 11px; }
-    #mobileSheet input[type=range] { width: 120px; height: 4px; }
-    #mobileSheet input[type=range]::-webkit-slider-thumb { width: 16px; height: 16px; }
-    #mobileSheet .val-display { font-size: 11px; }
-    #mobileSheet .control-label { font-size: 10px; }
-
-    /* Spawn grid — 2 columns on mobile */
-    #mobSpawnGrid {
-      display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
-      margin-bottom: 10px;
-    }
-    #mobSpawnGrid .btn { margin-bottom: 0; font-size: 10px; padding: 10px 6px; text-align: center; letter-spacing: 1px; }
-    .mob-qty-row { display: flex; gap: 6px; margin-bottom: 8px; }
-    .mob-qty-row .btn { flex: 1; text-align: center; padding: 8px 0; margin-bottom: 0; }
-
-    /* Species grid — 5 columns on mobile (wider viewport) */
-    #mobSpeciesGrid.species-grid { grid-template-columns: repeat(5, 1fr); gap: 5px; }
-
-    /* Deus grid */
-    .mob-deus-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-bottom: 6px; }
-    .mob-deus-grid .btn { margin-bottom: 0; font-size: 9px; padding: 9px 5px; }
-
-    /* Mutation nudge rows on mobile */
-    #mobileSheet .mut-row { margin-bottom: 7px; }
-    #mobileSheet .mut-btn { width: 30px; height: 30px; font-size: 14px; }
-    #mobileSheet .mut-label { font-size: 10px; }
-    #mobileSheet .type-tab { padding: 7px 4px; font-size: 9px; }
   }
 
-  /* Hide mobile-only elements on desktop */
-  #mobileTabBar, #mobileSheet { display: none; }
+  /* These elements only exist for the mobile drawer */
+  #drawerToggle, #drawerBackdrop { display: none; }
+  @media (max-width: 768px) {
+    #drawerToggle { display: flex; }
+  }
 </style>
 </head>
 <body>
 
 <div id="weatherBanner"><div id="weatherBannerTitle"></div><div id="weatherBannerSub"></div></div>
 <div id="seasonBar"><div id="seasonBarFill"></div></div>
+<button id="drawerToggle" onclick="toggleDrawer()" aria-label="Toggle controls">
+  <span></span><span></span><span></span>
+</button>
+<div id="drawerBackdrop" onclick="toggleDrawer()"></div>
 
 <header>
   <div class="logo">ALIFE <span>/ SIM</span></div>
@@ -674,144 +648,6 @@
   <span>ARTIFICIAL LIFE SIMULATOR — EVOLUTIONARY GENETICS ENGINE</span>
   <span id="fpsDisplay">60 FPS</span>
 </footer>
-
-<!-- ── MOBILE TAB BAR ─────────────────────────────────────────────────────────── -->
-<div id="mobileTabBar">
-  <button class="mob-tab active" onclick="mobSwitchTab('sim',this)">
-    <span class="mob-icon">⚙️</span><span>SIM</span>
-  </button>
-  <button class="mob-tab" onclick="mobSwitchTab('env',this)">
-    <span class="mob-icon">🌿</span><span>ENV</span>
-  </button>
-  <button class="mob-tab" onclick="mobSwitchTab('spawn',this)">
-    <span class="mob-icon">✦</span><span>SPAWN</span>
-  </button>
-  <button class="mob-tab" onclick="mobSwitchTab('species',this)">
-    <span class="mob-icon">◈</span><span>SPECIES</span>
-  </button>
-  <button class="mob-tab deus-tab" onclick="mobSwitchTab('deus',this)">
-    <span class="mob-icon">⚡</span><span>DEUS</span>
-  </button>
-</div>
-
-<!-- ── MOBILE BOTTOM SHEET ────────────────────────────────────────────────────── -->
-<div id="mobileSheet">
-  <div class="mob-sheet-inner">
-
-    <!-- SIM panel -->
-    <div id="mobPanelSim" class="mob-panel">
-      <div class="mob-heading">Simulation</div>
-      <div style="display:flex;gap:8px;margin-bottom:10px;">
-        <button class="btn active" id="mobPlayBtn" onclick="togglePlay()" style="flex:2;margin-bottom:0;">⏸ PAUSE</button>
-        <button class="btn danger" onclick="resetSim()" style="flex:1;margin-bottom:0;">↺ RESET</button>
-      </div>
-      <div class="control-row">
-        <div class="control-label">SPEED</div>
-        <input type="range" id="mobSpeedSlider" min="0" max="13" value="2" oninput="updateSpeed(this);document.getElementById('speedSlider').value=this.value;">
-        <div class="val-display" id="mobSpeedVal">1×</div>
-      </div>
-      <div class="control-row" style="margin-top:8px;">
-        <div class="control-label">SCENT TRAILS</div>
-        <button class="btn" id="mobPheroBtn" onclick="togglePhero()" style="width:auto;margin-bottom:0;padding:6px 10px;font-size:9px;">OFF</button>
-      </div>
-    </div>
-
-    <!-- ENV panel -->
-    <div id="mobPanelEnv" class="mob-panel" style="display:none;">
-      <div class="mob-heading">Environment</div>
-      <div class="control-row">
-        <div class="control-label">FOOD SPREAD</div>
-        <input type="range" id="mobFoodRate" min="1" max="50" value="8" oninput="updateParam('foodRate',this);document.getElementById('foodRate').value=this.value;">
-        <div class="val-display" id="mobFoodRateVal">8</div>
-      </div>
-      <div class="control-row">
-        <div class="control-label">MAX FOOD</div>
-        <input type="range" id="mobMaxFood" min="20" max="1000" value="120" oninput="updateParam('maxFood',this);document.getElementById('maxFood').value=this.value;">
-        <div class="val-display" id="mobMaxFoodVal">120</div>
-      </div>
-      <div class="control-row">
-        <div class="control-label">MUTATION</div>
-        <input type="range" id="mobMutRate" min="0" max="50" value="10" oninput="updateParam('mutRate',this);document.getElementById('mutRate').value=this.value;">
-        <div class="val-display" id="mobMutRateVal">10%</div>
-      </div>
-      <div class="control-row">
-        <div class="control-label">FLOCK STR</div>
-        <input type="range" id="mobFlockStr" min="0" max="20" value="10" oninput="updateParam('flockStr',this);document.getElementById('flockStr').value=this.value;">
-        <div class="val-display" id="mobFlockStrVal">10</div>
-      </div>
-    </div>
-
-    <!-- SPAWN panel -->
-    <div id="mobPanelSpawn" class="mob-panel" style="display:none;">
-      <div class="mob-heading">Spawn</div>
-      <div class="mob-qty-row">
-        <button class="btn qty-btn active" id="mobQty1"  onclick="setQty(1)"  style="margin-bottom:0;">1</button>
-        <button class="btn qty-btn"        id="mobQty10" onclick="setQty(10)" style="margin-bottom:0;">10</button>
-        <button class="btn qty-btn"        id="mobQty25" onclick="setQty(25)" style="margin-bottom:0;">25</button>
-      </div>
-      <div id="mobSpawnGrid">
-        <button class="btn" onclick="spawnCreatures('herbivore',spawnAmt())" style="margin-bottom:0;text-align:center;color:var(--accent);border-color:rgba(0,245,196,0.3);">+ HERB</button>
-        <button class="btn" onclick="spawnCreatures('carnivore',spawnAmt())" style="margin-bottom:0;text-align:center;color:var(--accent2);border-color:rgba(255,77,109,0.3);">+ CARN</button>
-        <button class="btn" onclick="spawnCreatures('omnivore',spawnAmt())"  style="margin-bottom:0;text-align:center;color:#2bbcff;border-color:rgba(43,188,255,0.3);">+ OMNI</button>
-        <button class="btn" onclick="spawnFood(spawnAmt())"                  style="margin-bottom:0;text-align:center;color:var(--accent3);border-color:rgba(255,209,102,0.3);">+ FOOD</button>
-        <button class="btn" onclick="spawnSeed(spawnAmt())"                  style="margin-bottom:0;text-align:center;color:#2d8a30;border-color:rgba(45,138,48,0.3);">+ SEED</button>
-      </div>
-    </div>
-
-    <!-- SPECIES panel -->
-    <div id="mobPanelSpecies" class="mob-panel" style="display:none;">
-      <div class="mob-heading">Species <span id="mobSpeciesCount" style="color:var(--text);font-size:9px;">0</span></div>
-      <div class="species-grid" id="mobSpeciesGrid" style="grid-template-columns:repeat(5,1fr);gap:5px;"></div>
-    </div>
-
-    <!-- DEUS panel -->
-    <div id="mobPanelDeus" class="mob-panel" style="display:none;">
-      <div class="mob-heading red">⚡ Deus Ex Machina</div>
-
-      <div class="deus-subtitle">Seasons</div>
-      <div class="mob-deus-grid" style="grid-template-columns:repeat(4,1fr);">
-        <button class="btn deus" onclick="deusSetSeason(0)" style="margin-bottom:0;font-size:9px;padding:8px 2px;text-align:center;">🌱</button>
-        <button class="btn deus" onclick="deusSetSeason(1)" style="margin-bottom:0;font-size:9px;padding:8px 2px;text-align:center;">☀️</button>
-        <button class="btn deus" onclick="deusSetSeason(2)" style="margin-bottom:0;font-size:9px;padding:8px 2px;text-align:center;">🍂</button>
-        <button class="btn deus" onclick="deusSetSeason(3)" style="margin-bottom:0;font-size:9px;padding:8px 2px;text-align:center;">❄️</button>
-      </div>
-      <button class="btn deus" id="mobLongWinterBtn" onclick="deusLongWinter()" style="font-size:9px;margin-top:6px;">🧊 LONG WINTER</button>
-
-      <div class="deus-subtitle">Weather</div>
-      <button class="btn deus" id="mobRandomWeatherBtn" onclick="toggleRandomWeather()" style="font-size:9px;">🎲 RANDOM EVENTS: OFF</button>
-      <div class="mob-deus-grid">
-        <button class="btn deus" id="mobDeusdroughtBtn"  onclick="deusTriggerWeather('DROUGHT')"        style="margin-bottom:0;font-size:9px;">🔥 DROUGHT</button>
-        <button class="btn deus" id="mobDeusplagueBtn"   onclick="deusTriggerWeather('PLAGUE WIND')"    style="margin-bottom:0;font-size:9px;">💨 PLAGUE</button>
-        <button class="btn deus" id="mobDeusfrenzywBtn"  onclick="deusTriggerWeather('FEEDING FRENZY')" style="margin-bottom:0;font-size:9px;">⚡ FRENZY</button>
-        <button class="btn deus" id="mobDeusblizzardBtn" onclick="deusTriggerWeather('BLIZZARD')"       style="margin-bottom:0;font-size:9px;">🌨️ BLIZZ</button>
-        <button class="btn deus" id="mobDeustoxicBtn"    onclick="deusTriggerWeather('TOXIC RAIN')"     style="margin-bottom:0;font-size:9px;">☠️ TOXIC</button>
-        <button class="btn deus" id="mobClearWeatherBtn" onclick="deusClearWeather()"                   style="margin-bottom:0;font-size:9px;">✕ CLEAR</button>
-        <button class="btn deus" onclick="deusClearToxic()"   style="margin-bottom:0;font-size:9px;grid-column:span 2;">🧹 PURGE TOXIC</button>
-      </div>
-
-      <div class="deus-subtitle">Catastrophes</div>
-      <div class="mob-deus-grid">
-        <button class="btn deus" id="mobMeteorBtn"  onclick="deusArmMeteor()"  style="margin-bottom:0;font-size:9px;">☄️ METEOR</button>
-        <button class="btn deus" id="mobFrenzyCBtn" onclick="deusFrenzy()"     style="margin-bottom:0;font-size:9px;">🩸 FRENZY</button>
-      </div>
-
-      <div class="deus-subtitle">Divine</div>
-      <div class="mob-deus-grid">
-        <button class="btn deus" id="mobChampionBtn" onclick="deusArmChampion()" style="margin-bottom:0;font-size:9px;">👑 CHAMPION</button>
-        <button class="btn deus" id="mobTeleportBtn" onclick="deusArmTeleport()" style="margin-bottom:0;font-size:9px;">🌀 TELEPORT</button>
-      </div>
-
-      <div class="deus-subtitle">Mutations</div>
-      <div class="type-tabs" style="margin-bottom:10px;">
-        <button class="type-tab herb active" id="mobMutTabHerb" onclick="setMutTab('herbivore')">HERB</button>
-        <button class="type-tab carn"        id="mobMutTabCarn" onclick="setMutTab('carnivore')">CARN</button>
-        <button class="type-tab omni"        id="mobMutTabOmni" onclick="setMutTab('omnivore')">OMNI</button>
-      </div>
-      <div id="mobMutRows"></div>
-    </div>
-
-  </div><!-- mob-sheet-inner -->
-</div><!-- mobileSheet -->
 
 <script>
 const canvas = document.getElementById('canvas');
@@ -2812,16 +2648,12 @@ function updateUI() {
   const speciesEntries = Object.values(speciesRegistry);
   const sc = document.getElementById('speciesCount');
   if (sc) sc.textContent = `(${speciesEntries.length})`;
-  const mobSc = document.getElementById('mobSpeciesCount');
-  if (mobSc) mobSc.textContent = speciesEntries.length;
   const spCounts = {};
   for (const c of creatures) { if (c.alive && c.speciesId) spCounts[c.speciesId] = (spCounts[c.speciesId]||0)+1; }
   const newFingerprint = speciesEntries
     .filter(sp => (spCounts[sp.id]||0) > 0)
     .map(sp => sp.id + ':' + (spCounts[sp.id]||0))
     .join('|');
-  // Update mobile species grid whenever fingerprint changes (not just on tab switch)
-  if (isMobile() && mobActiveTab === 'species') updateMobSpeciesGrid();
   const grid = document.getElementById('speciesGrid');
   if (grid && newFingerprint !== grid.dataset.fp) {
     // If selected species went extinct, clear it
@@ -3021,7 +2853,6 @@ function togglePlay() {
   const btn = document.getElementById('playBtn');
   btn.textContent = playing ? '⏸ PAUSE' : '▶ PLAY';
   btn.classList.toggle('active', playing);
-  syncMobPlayBtn();
 }
 
 function updateParam(key, el) {
@@ -3109,6 +2940,49 @@ canvas.addEventListener('click', e => {
     selectedCreature = null; // Just deselect — no food placement on empty click
   }
 });
+
+// ── Resize ────────────────────────────────────────────────────────────────────
+function resize() {
+  const panel  = document.querySelector('.panel');
+  const header = document.querySelector('header');
+  const footer = document.querySelector('footer');
+  if (isMobile()) {
+    canvas.width  = window.innerWidth;
+    canvas.height = window.innerHeight - header.offsetHeight;
+    canvas.style.width  = canvas.width  + 'px';
+    canvas.style.height = canvas.height + 'px';
+    chartCanvas.width = 180; chartCanvas.height = 60;
+  } else {
+    canvas.style.width = ''; canvas.style.height = '';
+    canvas.width  = window.innerWidth - panel.offsetWidth;
+    canvas.height = window.innerHeight - header.offsetHeight - footer.offsetHeight;
+    chartCanvas.width  = panel.offsetWidth - 24;
+    chartCanvas.height = 60;
+  }
+  initPhero();
+}
+
+// ── Mobile drawer ─────────────────────────────────────────────────────────────
+function toggleDrawer() {
+  const panel    = document.querySelector('.panel');
+  const toggle   = document.getElementById('drawerToggle');
+  const backdrop = document.getElementById('drawerBackdrop');
+  const open = panel.classList.toggle('drawer-open');
+  if (toggle)   toggle.classList.toggle('open', open);
+  if (backdrop) backdrop.classList.toggle('visible', open);
+}
+
+// Touch on canvas — forward to click handler
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  const t = e.touches[0];
+  canvas.dispatchEvent(new MouseEvent('click', {
+    bubbles: true, cancelable: true,
+    clientX: t.clientX, clientY: t.clientY
+  }));
+}, { passive: false });
+
+window.addEventListener('orientationchange', () => setTimeout(resize, 150));
 
 window.addEventListener('resize', resize);
 resize();
@@ -3348,225 +3222,6 @@ function nudgeTrait(key, delta, min, max) {
 // Build mutation rows on load
 buildMutRows();
 
-// ── Mobile UI ─────────────────────────────────────────────────────────────────
-// (isMobile declared at top of script)
-
-// Track active tab
-let mobActiveTab = 'sim';
-
-function mobSwitchTab(tab, btn) {
-  const sheet = document.getElementById('mobileSheet');
-  // If tapping the already-active tab, toggle sheet open/closed
-  if (tab === mobActiveTab) {
-    sheet.classList.toggle('open');
-    return;
-  }
-  mobActiveTab = tab;
-  sheet.classList.add('open');
-  // Switch tab button highlights
-  document.querySelectorAll('.mob-tab').forEach(t => t.classList.remove('active'));
-  if (btn) btn.classList.add('active');
-  // Show correct panel
-  document.querySelectorAll('.mob-panel').forEach(p => p.style.display = 'none');
-  const el = document.getElementById('mobPanel' + tab.charAt(0).toUpperCase() + tab.slice(1));
-  if (el) el.style.display = '';
-  // Refresh species grid when switching to species tab
-  if (tab === 'species') updateMobSpeciesGrid();
-}
-
-// Keep mobile play button in sync
-function syncMobPlayBtn() {
-  const btn = document.getElementById('mobPlayBtn');
-  if (!btn) return;
-  btn.textContent = playing ? '⏸ PAUSE' : '▶ PLAY';
-  btn.classList.toggle('active', playing);
-}
-
-// Keep mobile speed slider in sync with desktop
-function syncMobSpeed(label) {
-  const sl = document.getElementById('mobSpeedSlider');
-  const vl = document.getElementById('mobSpeedVal');
-  if (sl) sl.value = document.getElementById('speedSlider').value;
-  if (vl && label) vl.textContent = label;
-}
-
-// Sync mobile phero button
-function syncMobPheroBtn() {
-  const btn = document.getElementById('mobPheroBtn');
-  if (btn) {
-    btn.textContent = params.showPhero ? 'ON' : 'OFF';
-    btn.classList.toggle('active', params.showPhero);
-  }
-}
-
-// Sync qty buttons on mobile
-function syncMobQty() {
-  document.querySelectorAll('#mobileSheet .qty-btn').forEach(b => b.classList.remove('active'));
-  const el = document.getElementById('mobQty' + currentQty);
-  if (el) el.classList.add('active');
-}
-
-// Build mobile mutation rows (mirrors desktop but targets mobMutRows)
-function buildMobMutRows() {
-  const container = document.getElementById('mobMutRows');
-  if (!container) return;
-  container.innerHTML = '';
-  for (const trait of MUT_TRAITS) {
-    const row = document.createElement('div');
-    row.className = 'mut-row';
-    const lbl = document.createElement('div');
-    lbl.className = 'mut-label';
-    lbl.textContent = trait.label;
-    const minus = document.createElement('button');
-    minus.className = 'mut-btn minus';
-    minus.textContent = '−';
-    minus.onclick = () => nudgeTrait(trait.key, -trait.step, trait.min, trait.max);
-    const plus = document.createElement('button');
-    plus.className = 'mut-btn';
-    plus.textContent = '+';
-    plus.onclick = () => nudgeTrait(trait.key, trait.step, trait.min, trait.max);
-    row.appendChild(lbl); row.appendChild(minus); row.appendChild(plus);
-    container.appendChild(row);
-  }
-}
-buildMobMutRows();
-
-// Mobile species grid — mirrors desktop grid, same delegation
-const mobSpeciesGrid = document.getElementById('mobSpeciesGrid');
-let mobSpFingerprint = '';
-
-function updateMobSpeciesGrid() {
-  if (!isMobile()) return;
-  // Reuse same fingerprint logic as desktop
-  const alive = creatures.filter(c => c.alive);
-  const spCounts = {};
-  for (const c of alive) { if (c.speciesId) spCounts[c.speciesId] = (spCounts[c.speciesId]||0)+1; }
-  const fp = Object.entries(spCounts).sort().map(([k,v])=>k+':'+v).join(',');
-  if (fp === mobSpFingerprint) return;
-  mobSpFingerprint = fp;
-
-  const countEl = document.getElementById('mobSpeciesCount');
-  if (countEl) countEl.textContent = Object.keys(spCounts).length;
-
-  mobSpeciesGrid.innerHTML = '';
-  const entries = Object.values(speciesRegistry).filter(sp => (spCounts[sp.id]||0) > 0);
-  for (const sp of entries) {
-    const cnt = spCounts[sp.id] || 0;
-    if (!cnt) continue;
-    const cell = document.createElement('div');
-    cell.className = 'species-cell';
-    cell.dataset.sid = sp.id;
-    if (selectedSpeciesId === sp.id) cell.classList.add('selected-species');
-    const mc = document.createElement('canvas');
-    mc.width = 24; mc.height = 24;
-    const mctx = mc.getContext('2d');
-    const col = sp.type === 'herbivore' ? '#00f5c4' : sp.type === 'omnivore' ? '#2bbcff' : '#ff4d6d';
-    mctx.strokeStyle = col; mctx.fillStyle = col + '55'; mctx.lineWidth = 1.5;
-    drawShape(mctx, 12, 12, 8, sp.shape); mctx.fill(); mctx.stroke();
-    cell.appendChild(mc);
-    const lbl = document.createElement('div'); lbl.textContent = cnt; cell.appendChild(lbl);
-    const btnRow = document.createElement('div'); btnRow.className = 'sp-btn-row';
-    const minus = document.createElement('button');
-    minus.className = 'sp-btn minus'; minus.textContent = '−';
-    minus.dataset.action = 'kill'; minus.dataset.sid = sp.id;
-    const plus = document.createElement('button');
-    plus.className = 'sp-btn plus'; plus.textContent = '+';
-    plus.dataset.action = 'spawn'; plus.dataset.sid = sp.id;
-    btnRow.appendChild(minus); btnRow.appendChild(plus); cell.appendChild(btnRow);
-    mobSpeciesGrid.appendChild(cell);
-  }
-}
-
-mobSpeciesGrid.addEventListener('click', function(e) {
-  const btn = e.target.closest('button[data-action]');
-  if (btn) {
-    e.stopPropagation();
-    const sid = btn.dataset.sid;
-    if (btn.dataset.action === 'spawn') spawnFromSpecies(sid);
-    else if (btn.dataset.action === 'kill') {
-      const cands = creatures.filter(c => c.alive && c.speciesId === sid);
-      if (cands.length) { const v = cands[Math.floor(Math.random()*cands.length)]; v.alive=false; corpses.push({x:v.x,y:v.y,energy:0,decay:0,fromType:v.dna.type}); }
-    }
-    return;
-  }
-  const cell = e.target.closest('.species-cell');
-  if (!cell || !cell.dataset.sid) return;
-  const sid = cell.dataset.sid;
-  selectedSpeciesId = selectedSpeciesId === sid ? null : sid;
-  document.querySelectorAll('.species-cell').forEach(c2 => {
-    c2.classList.toggle('selected-species', c2.dataset.sid === selectedSpeciesId);
-  });
-});
-
-// Mirror Deus weather button states on mobile
-const _origUpdateDeusWeatherButtons = updateDeusWeatherButtons;
-updateDeusWeatherButtons = function() {
-  _origUpdateDeusWeatherButtons();
-  // Mirror active states on mobile buttons
-  const map = {
-    'DROUGHT':'mobDeusdroughtBtn','PLAGUE WIND':'mobDeusplagueBtn',
-    'FEEDING FRENZY':'mobDeusfrenzywBtn','BLIZZARD':'mobDeusblizzardBtn','TOXIC RAIN':'mobDeustoxicBtn'
-  };
-  Object.values(map).forEach(id => { const b=document.getElementById(id); if(b) b.classList.remove('active-event'); });
-  if (activeWeather) { const id=map[activeWeather.event.name]; if(id){const b=document.getElementById(id);if(b)b.classList.add('active-event');} }
-};
-
-// Mirror armed Deus states on mobile
-const _origClearDeusArmed = clearDeusArmed;
-clearDeusArmed = function() {
-  _origClearDeusArmed();
-  ['mobMeteorBtn','mobChampionBtn','mobTeleportBtn'].forEach(id => {
-    const b = document.getElementById(id); if(b) b.classList.remove('armed');
-  });
-};
-
-// Override resize to account for mobile tab bar
-function resize() {
-  const mobile = isMobile();
-  const panel  = document.querySelector('.panel');
-  const header = document.querySelector('header');
-  const footer = document.querySelector('footer');
-  const tabBar = document.getElementById('mobileTabBar');
-
-  if (mobile) {
-    const tabH = tabBar ? tabBar.offsetHeight : 52;
-    const w    = window.innerWidth;
-    const h    = window.innerHeight - header.offsetHeight - tabH;
-    canvas.width        = w;
-    canvas.height       = h;
-    canvas.style.width  = w + 'px';
-    canvas.style.height = h + 'px';
-    ctx.setTransform(1, 0, 0, 1, 0, 0); // reset any prior scaling
-    chartCanvas.width = 180; chartCanvas.height = 60;
-  } else {
-    canvas.style.width  = '';
-    canvas.style.height = '';
-    canvas.width  = window.innerWidth - panel.offsetWidth;
-    canvas.height = window.innerHeight - header.offsetHeight - footer.offsetHeight;
-    chartCanvas.width  = panel.offsetWidth - 24;
-    chartCanvas.height = 60;
-  }
-  initPhero();
-}
-
-// Touch support — translate touches directly into the click handler's coordinate space
-canvas.addEventListener('touchstart', e => {
-  e.preventDefault();
-  const touch = e.touches[0];
-  // Fire a synthetic click with the touch coordinates so the existing click handler works
-  const rect = canvas.getBoundingClientRect();
-  const mx = touch.clientX - rect.left;
-  const my = touch.clientY - rect.top;
-  // Directly invoke the same logic as the click handler using computed canvas coords
-  canvas.dispatchEvent(new MouseEvent('click', {
-    bubbles: true, cancelable: true,
-    clientX: touch.clientX, clientY: touch.clientY
-  }));
-}, { passive: false });
-
-// Orientation change — re-run resize after a tick to get correct dimensions
-window.addEventListener('orientationchange', () => setTimeout(resize, 150));
-
 function toggleSection(bodyId, btn) {
   const body = document.getElementById(bodyId);
   if (!body) return;
@@ -3587,7 +3242,6 @@ function togglePhero() {
   const btn = document.getElementById('pheroBtn');
   btn.textContent = params.showPhero ? '◎ HIDE SCENT TRAILS' : '◎ SHOW SCENT TRAILS';
   btn.classList.toggle('active', params.showPhero);
-  syncMobPheroBtn();
 }
 
 // ── Spawn quantity selector ────────────────────────────────────────────────────
