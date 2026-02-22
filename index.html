@@ -2803,8 +2803,8 @@ function drawCreature(c, depthDim) {
   if (alpha <= 0) return;
   // Viewport culling: skip expensive drawing for off-screen creatures
   const cullR = c.dna.size * 4 + 12; // generous margin for glow/ring
-  if (c.x + cullR < 0 || c.x - cullR > canvas.width ||
-      c.y + cullR < 0 || c.y - cullR > canvas.height) return;
+  if (!window._globeDrawing && (c.x + cullR < 0 || c.x - cullR > canvas.width ||
+      c.y + cullR < 0 || c.y - cullR > canvas.height)) return;
 
   const isH      = c.dna.type === 'herbivore';
   const isO      = c.dna.type === 'omnivore';
@@ -2830,8 +2830,8 @@ function drawCreature(c, depthDim) {
   ctx.save();
   ctx.globalAlpha = alpha;
 
-  // Trail — fades from transparent at oldest point to full opacity at head
-  const nearViewport = c.x > -40 && c.x < canvas.width+40 && c.y > -40 && c.y < canvas.height+40;
+  // Trail — skip in globe mode (transform makes viewport check unreliable, and trails are invisible anyway)
+  const nearViewport = !window._globeDrawing && c.x > -40 && c.x < canvas.width+40 && c.y > -40 && c.y < canvas.height+40;
   if (alive && c.trail.length > 1 && nearViewport) {
     const tLen = c.trail.length;
     for (let i = 1; i < tLen; i++) {
@@ -3616,8 +3616,7 @@ canvas.addEventListener('mousedown', e => {
   globeDragLastY = e.clientY;
   globeVelX = globeVelY = 0;
   globeAutoSpin = false;
-  renderGlobe._flatW = 0; // invalidate on rotation start
-  renderGlobe._sphereRotKey = null;
+  renderGlobe._pheroCache = null; // projected positions change with rotation
   canvas.style.cursor = 'grabbing';
   e.preventDefault();
 });
@@ -3763,127 +3762,61 @@ function renderGlobe() {
     }
   }
 
-  // ── Territory + Pheromone overlay ────────────────────────────────────────────
-  // Two-stage: (1) flat canvas rebuilt only when data changes, (2) sphere
-  // projection rebuilt only when rotation settles. During active drag, skip
-  // entirely — invisible overlay during fast spin is imperceptible and free.
-  {
-    // Stage 1: flat sim-space canvas — rebuild on data change only
-    const needFlat = !renderGlobe._flatOverlay
-      || renderGlobe._flatW !== W || renderGlobe._flatH !== H
-      || pheroNeedsRedraw;
+  // ── Pheromone overlay on globe ───────────────────────────────────────────────
+  // On data-change: paint all dots (with radial gradient fade) onto 3 offscreen
+  // canvases (one per channel). Per-frame cost: 3 drawImage calls, nothing else.
+  // Territory heatmap disabled in globe mode.
+  if (pheroHerb && pheroCarn && params.showPhero && !globeDrag) {
+    // Rebuild when data changes OR rotation changes (projected positions shift)
+    const rotKey3 = (globeRotX * 80 | 0) + ',' + (globeRotY * 80 | 0);
+    const needRebuild = !renderGlobe._pheroCanvases
+      || pheroNeedsRedraw
+      || renderGlobe._pheroCacheR !== R
+      || renderGlobe._pheroRotKey2 !== rotKey3;
 
-    if (needFlat) {
-      if (!renderGlobe._flatOverlay || renderGlobe._flatW !== W || renderGlobe._flatH !== H) {
-        renderGlobe._flatOverlay = document.createElement('canvas');
-        renderGlobe._flatOverlay.width  = W;
-        renderGlobe._flatOverlay.height = H;
+    if (needRebuild) {
+      const D = R * 2 | 0; // canvas sized to sphere diameter only
+      if (!renderGlobe._pheroCanvases || renderGlobe._pheroCacheR !== R) {
+        renderGlobe._pheroCanvases = [0,1,2].map(() => {
+          const c = document.createElement('canvas');
+          c.width = D; c.height = D; return c;
+        });
       }
-      const fot = renderGlobe._flatOverlay.getContext('2d');
-      fot.clearRect(0, 0, W, H);
+      const [chH, chO, chC] = renderGlobe._pheroCanvases;
+      const ox = cx - R, oy = cy - R; // offset: canvas origin is top-left of sphere bbox
+      [chH, chO, chC].forEach(c => { c.width = D; c.height = D; }); // clear via resize
+      const ctxH = chH.getContext('2d'), ctxO = chO.getContext('2d'), ctxC = chC.getContext('2d');
+      const pr2 = Math.max(1.6, R * PHERO_CELL / W * 1.44);
 
-      // Territory
-      if (terrCarn && terrGraze && terrW > 0) {
-        const cellR = TERR_CELL * 1.1;
-        for (let row = 0; row < terrH; row++) {
-          for (let col = 0; col < terrW; col++) {
-            const idx = row * terrW + col;
-            const cVal = terrCarn[idx], gVal = terrGraze[idx];
-            if (cVal < 0.05 && gVal < 0.05) continue;
-            const fx = (col + 0.5) * TERR_CELL, fy = (row + 0.5) * TERR_CELL;
-            if (cVal >= 0.05) {
-              const g = fot.createRadialGradient(fx, fy, 0, fx, fy, cellR);
-              g.addColorStop(0, `rgba(255,50,50,${Math.min(0.7, cVal * 0.8)})`);
-              g.addColorStop(1, 'rgba(255,50,50,0)');
-              fot.fillStyle = g;
-              fot.beginPath(); fot.arc(fx, fy, cellR, 0, Math.PI*2); fot.fill();
-            }
-            if (gVal >= 0.05) {
-              const g = fot.createRadialGradient(fx, fy, 0, fx, fy, cellR);
-              g.addColorStop(0, `rgba(0,240,140,${Math.min(0.5, gVal * 0.55)})`);
-              g.addColorStop(1, 'rgba(0,240,140,0)');
-              fot.fillStyle = g;
-              fot.beginPath(); fot.arc(fx, fy, cellR, 0, Math.PI*2); fot.fill();
-            }
-          }
+      for (let gy = 0; gy < pheroH; gy++) {
+        for (let gx = 0; gx < pheroW; gx++) {
+          const hi = pheroHerb[pheroIdx(gx, gy)];
+          const ci = pheroCarn[pheroIdx(gx, gy)];
+          const oi = pheroOmni ? pheroOmni[pheroIdx(gx, gy)] : 0;
+          if (hi < 0.04 && ci < 0.04 && oi < 0.04) continue;
+          const proj = globeProject((gx+0.5)*PHERO_CELL, (gy+0.5)*PHERO_CELL, W, H);
+          if (!proj.visible) continue;
+          const lx = proj.sx - ox, ly = proj.sy - oy; // local coords inside D×D canvas
+          const dot = (c2, rgb, a) => {
+            const g = c2.createRadialGradient(lx,ly,0,lx,ly,pr2);
+            g.addColorStop(0, `rgba(${rgb},${a.toFixed(2)})`);
+            g.addColorStop(1, `rgba(${rgb},0)`);
+            c2.fillStyle = g;
+            c2.beginPath(); c2.arc(lx, ly, pr2, 0, Math.PI*2); c2.fill();
+          };
+          if (hi >= 0.04) dot(ctxH, '0,255,190',  Math.min(0.9, hi));
+          if (oi >= 0.04) dot(ctxO, '0,180,255',  Math.min(0.9, oi));
+          if (ci >= 0.04) dot(ctxC, '255,50,90',  Math.min(0.9, ci));
         }
       }
-
-      // Pheromones
-      if (pheroHerb && pheroCarn && params.showPhero) {
-        const pr2 = PHERO_CELL * 1.5;
-        for (let gy = 0; gy < pheroH; gy++) {
-          for (let gx = 0; gx < pheroW; gx++) {
-            const hi = pheroHerb[pheroIdx(gx, gy)];
-            const ci = pheroCarn[pheroIdx(gx, gy)];
-            const oi = pheroOmni ? pheroOmni[pheroIdx(gx, gy)] : 0;
-            if (hi < 0.04 && ci < 0.04 && oi < 0.04) continue;
-            const fx = (gx + 0.5) * PHERO_CELL, fy = (gy + 0.5) * PHERO_CELL;
-            const blob = (rgb, a) => {
-              const g = fot.createRadialGradient(fx, fy, 0, fx, fy, pr2);
-              g.addColorStop(0,   `rgba(${rgb},${a.toFixed(2)})`);
-              g.addColorStop(0.5, `rgba(${rgb},${(a*0.4).toFixed(2)})`);
-              g.addColorStop(1,   `rgba(${rgb},0)`);
-              fot.fillStyle = g;
-              fot.beginPath(); fot.arc(fx, fy, pr2, 0, Math.PI*2); fot.fill();
-            };
-            if (hi >= 0.04) blob('0,255,190',  Math.min(0.9, hi));
-            if (oi >= 0.04) blob('0,180,255',  Math.min(0.9, oi));
-            if (ci >= 0.04) blob('255,50,90',  Math.min(0.9, ci));
-          }
-        }
-      }
-      renderGlobe._flatW = W; renderGlobe._flatH = H;
-      renderGlobe._sphereRotKey = null; // force sphere rebuild after flat change
+      renderGlobe._pheroCacheR  = R;
+      renderGlobe._pheroRotKey2 = rotKey3;
     }
-
-    // Stage 2: sphere projection — skip while dragging, rebuild when rotation settles
-    if (!globeDrag && renderGlobe._flatOverlay) {
-      const rotKey2 = (globeRotX * 120 | 0) + ',' + (globeRotY * 120 | 0);
-      const needSphere = !renderGlobe._sphereOverlay
-        || renderGlobe._sphereW !== W || renderGlobe._sphereH !== H
-        || renderGlobe._sphereRotKey !== rotKey2;
-
-      if (needSphere) {
-        // Low-res scanline projection: 1/4 resolution, then scale up
-        const SCALE = 4;
-        const sw = Math.ceil(W / SCALE), sh = Math.ceil(H / SCALE);
-        if (!renderGlobe._sphereOverlay || renderGlobe._sphereW !== W || renderGlobe._sphereH !== H) {
-          renderGlobe._sphereOverlay = document.createElement('canvas');
-          renderGlobe._sphereOverlay.width  = sw;
-          renderGlobe._sphereOverlay.height = sh;
-        }
-        const sct   = renderGlobe._sphereOverlay.getContext('2d');
-        const foCtx = renderGlobe._flatOverlay.getContext('2d');
-        const foPix = foCtx.getImageData(0, 0, W, H).data;
-        const out   = sct.createImageData(sw, sh);
-        const pix   = out.data;
-        const Rs    = R / SCALE, cxs = cx / SCALE, cys = cy / SCALE;
-
-        for (let py = 0; py < sh; py++) {
-          for (let px = 0; px < sw; px++) {
-            const nx = (px - cxs) / Rs, ny = -(py - cys) / Rs;
-            const nz2 = 1 - nx*nx - ny*ny;
-            if (nz2 < 0) continue;
-            const p3  = unrotatePoint({x: nx, y: ny, z: Math.sqrt(nz2)}, globeRotX, globeRotY);
-            const lat = Math.asin(Math.max(-1, Math.min(1, p3.y)));
-            const lon = Math.atan2(p3.x, p3.z);
-            const sfx = ((lon + Math.PI) / (Math.PI * 2)) * W;
-            const sfy = ((lat / Math.PI) + 0.5) * H;
-            const si  = (Math.min(H-1, sfy|0) * W + Math.min(W-1, sfx|0)) * 4;
-            if (foPix[si+3] === 0) continue;
-            const oi2 = (py * sw + px) * 4;
-            pix[oi2]=foPix[si]; pix[oi2+1]=foPix[si+1]; pix[oi2+2]=foPix[si+2]; pix[oi2+3]=foPix[si+3];
-          }
-        }
-        sct.putImageData(out, 0, 0);
-        renderGlobe._sphereRotKey = rotKey2;
-        renderGlobe._sphereW = W; renderGlobe._sphereH = H;
-      }
-      ctx.drawImage(renderGlobe._sphereOverlay, 0, 0, W, H);
+    // 3 drawImage calls — no per-frame math, hidden during drag
+    for (const ch of renderGlobe._pheroCanvases) {
+      ctx.drawImage(ch, cx - R, cy - R);
     }
   }
-
   // ── Day/Night terminator shadow ───────────────────────────────────────────
   // The terminator is the great circle dividing day from night.
   // Simple approach: shadowed hemisphere offset by dayTick progress.
@@ -3904,43 +3837,48 @@ function renderGlobe() {
   ctx.fillRect(cx - R, cy - R, R * 2, R * 2);
   ctx.restore();
 
-  // ── Lat/lon grid lines — very subtle ─────────────────────────────────────
-  ctx.globalAlpha = 0.06;
-  ctx.strokeStyle = '#8899bb';
-  ctx.lineWidth = 0.5;
-  // Latitude lines (every 30°)
-  for (let lat = -60; lat <= 60; lat += 30) {
-    const latR = lat * Math.PI / 180;
-    ctx.beginPath();
-    let first = true;
-    for (let lonDeg = -180; lonDeg <= 180; lonDeg += 3) {
-      const lonR = lonDeg * Math.PI / 180;
-      const p3 = lonLatTo3D(lonR, latR);
-      const pr = rotatePoint(p3, globeRotX, globeRotY);
-      if (pr.z < 0) { first = true; continue; }
-      const sx2 = cx + pr.x * R, sy2 = cy - pr.y * R;
-      first ? ctx.moveTo(sx2, sy2) : ctx.lineTo(sx2, sy2);
-      first = false;
+  // ── Lat/lon grid lines — pre-baked, rebuilt only when rotation changes ──────
+  {
+    const gKey = (globeRotX * 80 | 0) + ',' + (globeRotY * 80 | 0) + ',' + (R | 0);
+    if (!renderGlobe._gridCanvas || renderGlobe._gridKey !== gKey) {
+      if (!renderGlobe._gridCanvas) {
+        renderGlobe._gridCanvas = document.createElement('canvas');
+      }
+      renderGlobe._gridCanvas.width  = W;
+      renderGlobe._gridCanvas.height = H;
+      const gc = renderGlobe._gridCanvas.getContext('2d');
+      gc.clearRect(0, 0, W, H);
+      gc.globalAlpha = 0.06;
+      gc.strokeStyle = '#8899bb';
+      gc.lineWidth = 0.5;
+      for (let lat = -60; lat <= 60; lat += 30) {
+        const latR = lat * Math.PI / 180;
+        gc.beginPath(); let first = true;
+        for (let lonDeg = -180; lonDeg <= 180; lonDeg += 5) {
+          const p3 = lonLatTo3D(lonDeg * Math.PI/180, latR);
+          const pr = rotatePoint(p3, globeRotX, globeRotY);
+          if (pr.z < 0) { first = true; continue; }
+          const sx2 = cx+pr.x*R, sy2 = cy-pr.y*R;
+          first ? gc.moveTo(sx2,sy2) : gc.lineTo(sx2,sy2); first = false;
+        }
+        gc.stroke();
+      }
+      for (let lonDeg = -180; lonDeg <= 135; lonDeg += 45) {
+        const lonR = lonDeg * Math.PI / 180;
+        gc.beginPath(); let first = true;
+        for (let latDeg = -80; latDeg <= 80; latDeg += 5) {
+          const p3 = lonLatTo3D(lonR, latDeg * Math.PI/180);
+          const pr = rotatePoint(p3, globeRotX, globeRotY);
+          if (pr.z < 0) { first = true; continue; }
+          const sx2 = cx+pr.x*R, sy2 = cy-pr.y*R;
+          first ? gc.moveTo(sx2,sy2) : gc.lineTo(sx2,sy2); first = false;
+        }
+        gc.stroke();
+      }
+      renderGlobe._gridKey = gKey;
     }
-    ctx.stroke();
+    ctx.drawImage(renderGlobe._gridCanvas, 0, 0);
   }
-  // Longitude lines (every 45°)
-  for (let lonDeg = -180; lonDeg <= 135; lonDeg += 45) {
-    const lonR = lonDeg * Math.PI / 180;
-    ctx.beginPath();
-    let first = true;
-    for (let latDeg = -80; latDeg <= 80; latDeg += 3) {
-      const latR = latDeg * Math.PI / 180;
-      const p3 = lonLatTo3D(lonR, latR);
-      const pr = rotatePoint(p3, globeRotX, globeRotY);
-      if (pr.z < 0) { first = true; continue; }
-      const sx2 = cx + pr.x * R, sy2 = cy - pr.y * R;
-      first ? ctx.moveTo(sx2, sy2) : ctx.lineTo(sx2, sy2);
-      first = false;
-    }
-    ctx.stroke();
-  }
-  ctx.globalAlpha = 1;
   ctx.restore(); // end sphere clip
 
   // ── Sphere specular highlight ─────────────────────────────────────────────
@@ -4006,6 +3944,7 @@ function renderGlobe() {
   // Depth sort: back to front (lower z drawn first)
   items.sort((a, b) => a.proj.z - b.proj.z);
 
+  window._globeDrawing = true;
   // Draw each item — reuse 2D draw functions but with transformed coords
   for (const item of items) {
     const { proj, obj } = item;
@@ -4037,6 +3976,7 @@ function renderGlobe() {
     ctx.restore();
   }
 
+  window._globeDrawing = false;
   // ── Meteors — drawn projected onto globe, above all entities ────────────────
   for (const m of meteors) {
     const proj = globeProject(m.x, m.y, W, H);
@@ -4086,8 +4026,6 @@ canvas.addEventListener('wheel', e => {
   e.preventDefault();
   const delta = e.deltaY > 0 ? -0.08 : 0.08;
   globeZoom = Math.max(0.35, Math.min(2.2, globeZoom + delta));
-  renderGlobe._flatW = 0; // invalidate flat overlay on zoom
-  renderGlobe._sphereRotKey = null;
 }, { passive: false });
 
 // ── Toggle globe mode ─────────────────────────────────────────────────────────
@@ -4096,8 +4034,6 @@ function toggleGlobeMode() {
   canvas.style.cursor = globeMode ? 'grab' : 'crosshair';
   globeZoom = 1.0;
   renderGlobe._stars = null;
-  renderGlobe._flatW = 0;
-  renderGlobe._sphereRotKey = null;
   globeAutoSpin = true;
   renderGlobe._stars = null; // regenerate star positions for new canvas size
   const btn = document.getElementById('globeBtn');
