@@ -475,6 +475,7 @@
     <div class="stat stat-hide-mobile"><div class="stat-val" id="tickNum">0</div><div class="stat-lbl">Tick</div></div>
     <div class="stat"><div class="stat-val" id="seasonDisplay" style="color:#ffd166">🌱</div><div class="stat-lbl">Season</div></div>
     <div class="stat stat-hide-mobile"><div class="stat-val" id="dayNightDisplay" style="color:#aaaaee">☀</div><div class="stat-lbl">Cycle</div></div>
+    <div class="stat stat-hide-mobile" style="cursor:pointer" onclick="toggleGlobeMode()"><div class="stat-val" id="globeBtn" style="color:#6699ff;font-size:10px;letter-spacing:0">🌐 GLOBE VIEW</div><div class="stat-lbl">Mode</div></div>
   </div>
   <a href="https://www.linkedin.com/in/callum-smith-55118071/" target="_blank" rel="noopener" class="by-cal-link">
     <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
@@ -1390,12 +1391,15 @@ function updateCreature(c) {
   if (infected) c.energy -= 0.06;
   // Normal metabolism; slow down in the last 20% to give the boom-bust cycle
   // more time to stabilise rather than crash
-  const sizeMeta  = c.dna.size * 0.003; // larger = hungrier
+  const sizeMeta  = c.dna.size * 0.003;
   const baseDrain = c.dna.metabolism + c.dna.speed * 0.003 + sizeMeta;
   const seasonMult  = window._seasonMetaMult || 1.0;
   const nightMult   = (window._isNight && c.dna.type !== 'carnivore') ? 0.88 : 1.0;
   const infMult     = infected ? 1.12 : 1.0;
-  const drainMult   = (c.energy < 60 ? 0.45 : 1.0) * seasonMult * nightMult * infMult;
+  // Fire warmth: 30% reduced drain when near a fire (warmth radius = 80px)
+  const nearAnyFire = fires.some(f => dist(c, f) < 80);
+  const fireMult    = nearAnyFire ? 0.70 : 1.0;
+  const drainMult   = (c.energy < 60 ? 0.45 : 1.0) * seasonMult * nightMult * infMult * fireMult;
   c.energy -= baseDrain * drainMult;
 
   if (c.energy <= 0 || c.age > 4000) {
@@ -1414,6 +1418,7 @@ function updateCreature(c) {
     if (c.infectionStacks >= 15)      deathStats.byInfection++;
     else if (c.age > 4000)            deathStats.byAge++;
     else if (c._killedByCarnivore)    deathStats.byCarnivore++;
+    else if (c.infectionStacks >= 5)  deathStats.byInfection++; // infected and died of energy drain
     else                              deathStats.byEnergy++;
     c.alive = false;
     return;
@@ -1497,9 +1502,23 @@ function updateCreature(c) {
         const avg = (a, b) => (a + b) / 2;
         const newGen = Math.max(c.gen, partner.gen) + 1;
         generation = Math.max(generation, newGen);
-        // 80% = 1 offspring, 15% = 2, 5% = 3
-        const roll = Math.random();
-        const numOffspring = roll < 0.80 ? 1 : roll < 0.95 ? 2 : 3;
+        // Offspring count by type:
+        //   Herbivore/Omnivore: 80% = 1, 15% = 2, 5% = 3
+        //   Carnivore: weighted litter 1–7 (10/20/30/20/10/5/5%)
+        let numOffspring;
+        if (c.dna.type === 'carnivore') {
+          const roll = Math.random();
+          numOffspring = roll < 0.10 ? 1
+                       : roll < 0.30 ? 2
+                       : roll < 0.60 ? 3
+                       : roll < 0.80 ? 4
+                       : roll < 0.90 ? 5
+                       : roll < 0.95 ? 6
+                       : 7;
+        } else {
+          const roll = Math.random();
+          numOffspring = roll < 0.80 ? 1 : roll < 0.95 ? 2 : 3;
+        }
         for (let n = 0; n < numOffspring; n++) {
           const childDNA = mutateDNA({
             type:       c.dna.type,
@@ -1551,7 +1570,7 @@ function updateCreature(c) {
   const ME           = maxEnergy(c);
   const MATE_ENERGY  = bloodMoon ? Math.round(ME * 0.20) : (isNight ? Math.round(ME * 0.67) : Math.round(ME * 0.80));
   const SATED_ENERGY = Math.round(ME * 0.90);
-  const MAX_MATES    = c.dna.type === 'herbivore' ? 3 : 5; // carns/omnis retire at 5
+  const MAX_MATES    = c.champion ? Infinity : c.dna.type === 'herbivore' ? 3 : 5;
 
   const isSated       = c.energy >= SATED_ENERGY;
   const canMate       = c.matingCooldown === 0 && c.mateCount < MAX_MATES && !c.matingWith;
@@ -2383,10 +2402,16 @@ function updateSim() {
                  || (ev.name === 'PLAGUE WIND')
                  || (ev.name === 'TOXIC RAIN');
       if (valid) {
-        activeWeather = { event: ev, ticksLeft: ev.duration };
-        toxicRainActive = ev.name === 'TOXIC RAIN';
-        showWeatherBanner(ev.emoji + ' ' + ev.name, ev.color, ev.duration, ev.desc);
-        updateDeusWeatherButtons();
+        if (ev.name === 'PLAGUE WIND') {
+          const px2 = 40 + Math.random() * (canvas.width  - 80);
+          const py2 = 40 + Math.random() * (canvas.height - 80);
+          placePlagueZone(px2, py2);
+        } else {
+          activeWeather = { event: ev, ticksLeft: ev.duration };
+          toxicRainActive = ev.name === 'TOXIC RAIN';
+          showWeatherBanner(ev.emoji + ' ' + ev.name, ev.color, ev.duration, ev.desc);
+          updateDeusWeatherButtons();
+        }
       } else {
         weatherCooldown = 200; // retry soon
       }
@@ -3469,6 +3494,690 @@ function drawTerritoryMap() {
   ctx.restore();
 }
 
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// GLOBE MODE — Version A: cosmetic sphere projection of flat 2D simulation
+//
+// Coordinate pipeline:
+//   Simulation: (x, y) in canvas pixels [0..W, 0..H]
+//   ↓ flatToSphere(): normalize to lon ∈ [-π, π], lat ∈ [-π/2, π/2]
+//   ↓ rotatePoint(): apply globe rotation quaternion
+//   ↓ project(): orthographic projection to screen (cx, cy)
+//
+// Inverse (click → sim coords):
+//   Screen (sx, sy) → unproject to sphere hit → unrotate → sphereToFlat()
+// ═══════════════════════════════════════════════════════════════════════════════
+
+let globeMode = false;
+
+// Rotation state — stored as two Euler angles for simplicity
+let globeRotX = 0.3;   // tilt (radians) — slight polar tilt looks beautiful
+let globeRotY = 0;     // spin around vertical axis
+
+// Drag state
+let globeDrag = false;
+let globeDragLastX = 0, globeDragLastY = 0;
+let globeVelX = 0, globeVelY = 0;  // inertia
+let globeAutoSpin = true;           // slow auto-rotation when not dragging
+let globeZoom     = 1.0;            // zoom multiplier (1 = default, 0.4–2.0)
+
+// Globe radius — computed from canvas each frame
+function globeRadius(W, H) { return Math.min(W, H) * 0.44 * globeZoom; }
+
+// ── Coordinate transforms ─────────────────────────────────────────────────────
+
+function flatToSphere(x, y, W, H) {
+  // Map flat canvas to lon/lat
+  const lon = (x / W) * Math.PI * 2 - Math.PI;          // -π to +π
+  const lat = ((y / H) - 0.5) * Math.PI;                 // -π/2 to +π/2
+  return { lon, lat };
+}
+
+function sphereToFlat(lon, lat, W, H) {
+  const x = ((lon + Math.PI) / (Math.PI * 2)) * W;
+  const y = ((lat / Math.PI) + 0.5) * H;
+  return { x, y };
+}
+
+function lonLatTo3D(lon, lat) {
+  return {
+    x: Math.cos(lat) * Math.sin(lon),
+    y: Math.sin(lat),
+    z: Math.cos(lat) * Math.cos(lon),
+  };
+}
+
+function rotatePoint(p, rx, ry) {
+  // Rotate around X axis (tilt)
+  const cosX = Math.cos(rx), sinX = Math.sin(rx);
+  let y1 = p.y * cosX - p.z * sinX;
+  let z1 = p.y * sinX + p.z * cosX;
+  // Rotate around Y axis (spin)
+  const cosY = Math.cos(ry), sinY = Math.sin(ry);
+  let x2 = p.x * cosY + z1 * sinY;
+  let z2 = -p.x * sinY + z1 * cosY;
+  return { x: x2, y: y1, z: z2 };
+}
+
+function unrotatePoint(p, rx, ry) {
+  // Inverse of rotatePoint — reverse Y then X
+  const cosY = Math.cos(-ry), sinY = Math.sin(-ry);
+  let x1 = p.x * cosY + p.z * sinY;
+  let z1 = -p.x * sinY + p.z * cosY;
+  const cosX = Math.cos(-rx), sinX = Math.sin(-rx);
+  let y2 = p.y * cosX - z1 * sinX;
+  let z2 = p.y * sinX + z1 * cosX;
+  return { x: x1, y: y2, z: z2 };
+}
+
+function projectTo2D(p3, cx, cy, R) {
+  // Orthographic projection — z is depth (1=front, -1=back)
+  return {
+    sx: cx + p3.x * R,
+    sy: cy - p3.y * R,    // canvas y is inverted
+    z:  p3.z,
+    visible: p3.z >= -0.05,
+  };
+}
+
+// Main: convert flat sim (x,y) → screen (sx,sy) + visibility
+function globeProject(x, y, W, H) {
+  const cx = W / 2, cy = H / 2;
+  const R  = globeRadius(W, H);
+  const { lon, lat } = flatToSphere(x, y, W, H);
+  const p3 = lonLatTo3D(lon, lat);
+  const pr = rotatePoint(p3, globeRotX, globeRotY);
+  return projectTo2D(pr, cx, cy, R);
+}
+
+// Screen → flat sim coords (returns null if click misses sphere)
+function globeUnproject(sx, sy, W, H) {
+  const cx = W / 2, cy = H / 2;
+  const R  = globeRadius(W, H);
+  const nx = (sx - cx) / R;
+  const ny = -(sy - cy) / R;
+  const nz2 = 1 - nx*nx - ny*ny;
+  if (nz2 < 0) return null;      // missed the sphere
+  const nz = Math.sqrt(nz2);
+  const pr  = { x: nx, y: ny, z: nz };
+  const p3  = unrotatePoint(pr, globeRotX, globeRotY);
+  const lat = Math.asin(Math.max(-1, Math.min(1, p3.y)));
+  const lon = Math.atan2(p3.x, p3.z);
+  return sphereToFlat(lon, lat, W, H);
+}
+
+// ── Drag handlers ─────────────────────────────────────────────────────────────
+
+canvas.addEventListener('mousedown', e => {
+  if (!globeMode) return;
+  if (deusMode) return; // let deus clicks through
+  globeDrag = true;
+  globeDragLastX = e.clientX;
+  globeDragLastY = e.clientY;
+  globeVelX = globeVelY = 0;
+  globeAutoSpin = false;
+  renderGlobe._flatW = 0; // invalidate on rotation start
+  renderGlobe._sphereRotKey = null;
+  canvas.style.cursor = 'grabbing';
+  e.preventDefault();
+});
+
+canvas.addEventListener('mousemove', e => {
+  if (!globeMode || !globeDrag) return;
+  const dx = e.clientX - globeDragLastX;
+  const dy = e.clientY - globeDragLastY;
+  globeRotY += dx * 0.007;
+  globeRotX += dy * 0.007;
+  // No clamp — full 360° rotation in both axes
+  globeVelX  = dy * 0.003;
+  globeVelY  = dx * 0.003;
+  globeDragLastX = e.clientX;
+  globeDragLastY = e.clientY;
+});
+
+window.addEventListener('mouseup', () => {
+  if (!globeMode || !globeDrag) return;
+  globeDrag = false;
+  canvas.style.cursor = globeMode ? 'grab' : 'crosshair';
+});
+
+// ── Globe render ──────────────────────────────────────────────────────────────
+
+function renderGlobe() {
+  const W = canvas.width, H = canvas.height;
+  const cx = W / 2, cy = H / 2;
+  const R  = globeRadius(W, H);
+
+  // Inertia + auto-spin
+  if (!globeDrag) {
+    globeRotY += globeVelY;
+    globeRotX += globeVelX;
+    globeVelX *= 0.93;
+    globeVelY *= 0.93;
+    if (globeAutoSpin && Math.abs(globeVelY) < 0.0005)
+      globeRotY += 0.0008; // very gentle auto-spin
+  }
+
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#060810';
+  ctx.fillRect(0, 0, W, H);
+
+  // ── Stars + nebula background ────────────────────────────────────────────
+  if (!renderGlobe._stars) {
+    // Stars: mix of sizes and warm/cool tints
+    const starColors = ['#ffffff','#ffe8cc','#cce0ff','#ffd6ff','#ccffee'];
+    renderGlobe._stars = Array.from({length: 340}, () => ({
+      x: Math.random() * W, y: Math.random() * H,
+      r: Math.random() < 0.04 ? Math.random() * 2.2 + 1.2   // rare bright stars
+       : Math.random() < 0.25 ? Math.random() * 1.0 + 0.7   // medium
+       : Math.random() * 0.55 + 0.2,                         // dim background
+      a: Math.random() * 0.75 + 0.18,
+      c: starColors[Math.floor(Math.random() * starColors.length)],
+      twinkleOffset: Math.random() * Math.PI * 2,
+    }));
+    // Nebula clouds: large soft blobs in the background
+    renderGlobe._nebulae = Array.from({length: 5}, () => ({
+      x: Math.random() * W, y: Math.random() * H,
+      rx: W * (0.12 + Math.random() * 0.22),
+      ry: H * (0.10 + Math.random() * 0.18),
+      hue: [200,220,260,290,180][Math.floor(Math.random()*5)],
+      a: 0.025 + Math.random() * 0.035,
+    }));
+  }
+  // Nebula wisps
+  ctx.save();
+  for (const nb of renderGlobe._nebulae) {
+    const ng = ctx.createRadialGradient(nb.x, nb.y, 0, nb.x, nb.y, nb.rx);
+    ng.addColorStop(0, `hsla(${nb.hue},60%,55%,${nb.a})`);
+    ng.addColorStop(1, `hsla(${nb.hue},60%,55%,0)`);
+    ctx.beginPath();
+    ctx.ellipse(nb.x, nb.y, nb.rx, nb.ry, 0.4, 0, Math.PI*2);
+    ctx.fillStyle = ng; ctx.fill();
+  }
+  // Stars with gentle twinkle
+  for (const st of renderGlobe._stars) {
+    const twinkle = 0.88 + 0.12 * Math.sin(tick * 0.03 + st.twinkleOffset);
+    ctx.globalAlpha = st.a * twinkle;
+    ctx.fillStyle = st.c;
+    ctx.beginPath(); ctx.arc(st.x, st.y, st.r, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.restore();
+
+  // ── Atmosphere glow ring ──────────────────────────────────────────────────
+  const bm = !!(window._bloodMoon && window._isNight);
+  const atmoColor = bm ? [255, 80, 40] : window._isNight ? [100, 120, 255] : [60, 180, 255];
+  const atmoInner = R * 0.96, atmoOuter = R * 1.28;
+  const atmoG = ctx.createRadialGradient(cx, cy, atmoInner, cx, cy, atmoOuter);
+  atmoG.addColorStop(0,   `rgba(${atmoColor.join(',')},0.38)`);
+  atmoG.addColorStop(0.35,`rgba(${atmoColor.join(',')},0.14)`);
+  atmoG.addColorStop(0.7, `rgba(${atmoColor.join(',')},0.04)`);
+  atmoG.addColorStop(1,   `rgba(${atmoColor.join(',')},0)`);
+  ctx.beginPath(); ctx.arc(cx, cy, atmoOuter, 0, Math.PI*2);
+  ctx.fillStyle = atmoG; ctx.fill();
+  // Inner atmosphere haze band — thin bright ring right at limb
+  const limbG = ctx.createRadialGradient(cx, cy, R*0.90, cx, cy, R*1.04);
+  limbG.addColorStop(0, `rgba(${atmoColor.join(',')},0)`);
+  limbG.addColorStop(0.65, `rgba(${atmoColor.join(',')},0.32)`);
+  limbG.addColorStop(1,    `rgba(${atmoColor.join(',')},0)`);
+  ctx.beginPath(); ctx.arc(cx, cy, R*1.04, 0, Math.PI*2);
+  ctx.fillStyle = limbG; ctx.fill();
+
+  // ── Globe base sphere ─────────────────────────────────────────────────────
+  const baseG = ctx.createRadialGradient(cx - R*0.28, cy - R*0.28, 0, cx, cy, R);
+  if (bm) {
+    // Blood moon: dark crimson world
+    baseG.addColorStop(0,   '#3a0e0e');
+    baseG.addColorStop(0.45,'#220808');
+    baseG.addColorStop(1,   '#0e0404');
+  } else if (window._isNight) {
+    baseG.addColorStop(0,   '#1e2a5a');
+    baseG.addColorStop(0.45,'#111838');
+    baseG.addColorStop(1,   '#07091c');
+  } else {
+    // Day: vivid ocean blue with green land tones
+    baseG.addColorStop(0,   '#2a6e8a');
+    baseG.addColorStop(0.35,'#1a4f6e');
+    baseG.addColorStop(0.65,'#12334a');
+    baseG.addColorStop(1,   '#080e18');
+  }
+  ctx.save();
+  ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI*2); ctx.clip();
+  ctx.fillStyle = baseG; ctx.fillRect(cx-R, cy-R, R*2, R*2);
+
+  // Land-mass colour wash on the day side — warm green-brown over the blue base
+  if (!window._isNight && !bm) {
+    const landG = ctx.createRadialGradient(cx + R*0.1, cy + R*0.05, 0, cx, cy, R*0.9);
+    landG.addColorStop(0,   'rgba(40,110,55,0.28)');
+    landG.addColorStop(0.4, 'rgba(30,85,40,0.14)');
+    landG.addColorStop(0.8, 'rgba(10,40,20,0.06)');
+    landG.addColorStop(1,   'rgba(0,0,0,0)');
+    ctx.fillStyle = landG; ctx.fillRect(cx-R, cy-R, R*2, R*2);
+    // Polar ice caps — white wash near poles
+    for (const sign of [-1, 1]) {
+      const poleY = cy - sign * R * 0.78;
+      const iceG = ctx.createRadialGradient(cx, poleY, 0, cx, poleY, R * 0.55);
+      iceG.addColorStop(0,   'rgba(200,230,255,0.22)');
+      iceG.addColorStop(0.5, 'rgba(180,210,255,0.08)');
+      iceG.addColorStop(1,   'rgba(0,0,0,0)');
+      ctx.fillStyle = iceG; ctx.fillRect(cx-R, cy-R, R*2, R*2);
+    }
+  }
+
+  // ── Territory + Pheromone overlay ────────────────────────────────────────────
+  // Two-stage: (1) flat canvas rebuilt only when data changes, (2) sphere
+  // projection rebuilt only when rotation settles. During active drag, skip
+  // entirely — invisible overlay during fast spin is imperceptible and free.
+  {
+    // Stage 1: flat sim-space canvas — rebuild on data change only
+    const needFlat = !renderGlobe._flatOverlay
+      || renderGlobe._flatW !== W || renderGlobe._flatH !== H
+      || pheroNeedsRedraw;
+
+    if (needFlat) {
+      if (!renderGlobe._flatOverlay || renderGlobe._flatW !== W || renderGlobe._flatH !== H) {
+        renderGlobe._flatOverlay = document.createElement('canvas');
+        renderGlobe._flatOverlay.width  = W;
+        renderGlobe._flatOverlay.height = H;
+      }
+      const fot = renderGlobe._flatOverlay.getContext('2d');
+      fot.clearRect(0, 0, W, H);
+
+      // Territory
+      if (terrCarn && terrGraze && terrW > 0) {
+        const cellR = TERR_CELL * 1.1;
+        for (let row = 0; row < terrH; row++) {
+          for (let col = 0; col < terrW; col++) {
+            const idx = row * terrW + col;
+            const cVal = terrCarn[idx], gVal = terrGraze[idx];
+            if (cVal < 0.05 && gVal < 0.05) continue;
+            const fx = (col + 0.5) * TERR_CELL, fy = (row + 0.5) * TERR_CELL;
+            if (cVal >= 0.05) {
+              const g = fot.createRadialGradient(fx, fy, 0, fx, fy, cellR);
+              g.addColorStop(0, `rgba(255,50,50,${Math.min(0.7, cVal * 0.8)})`);
+              g.addColorStop(1, 'rgba(255,50,50,0)');
+              fot.fillStyle = g;
+              fot.beginPath(); fot.arc(fx, fy, cellR, 0, Math.PI*2); fot.fill();
+            }
+            if (gVal >= 0.05) {
+              const g = fot.createRadialGradient(fx, fy, 0, fx, fy, cellR);
+              g.addColorStop(0, `rgba(0,240,140,${Math.min(0.5, gVal * 0.55)})`);
+              g.addColorStop(1, 'rgba(0,240,140,0)');
+              fot.fillStyle = g;
+              fot.beginPath(); fot.arc(fx, fy, cellR, 0, Math.PI*2); fot.fill();
+            }
+          }
+        }
+      }
+
+      // Pheromones
+      if (pheroHerb && pheroCarn && params.showPhero) {
+        const pr2 = PHERO_CELL * 1.5;
+        for (let gy = 0; gy < pheroH; gy++) {
+          for (let gx = 0; gx < pheroW; gx++) {
+            const hi = pheroHerb[pheroIdx(gx, gy)];
+            const ci = pheroCarn[pheroIdx(gx, gy)];
+            const oi = pheroOmni ? pheroOmni[pheroIdx(gx, gy)] : 0;
+            if (hi < 0.04 && ci < 0.04 && oi < 0.04) continue;
+            const fx = (gx + 0.5) * PHERO_CELL, fy = (gy + 0.5) * PHERO_CELL;
+            const blob = (rgb, a) => {
+              const g = fot.createRadialGradient(fx, fy, 0, fx, fy, pr2);
+              g.addColorStop(0,   `rgba(${rgb},${a.toFixed(2)})`);
+              g.addColorStop(0.5, `rgba(${rgb},${(a*0.4).toFixed(2)})`);
+              g.addColorStop(1,   `rgba(${rgb},0)`);
+              fot.fillStyle = g;
+              fot.beginPath(); fot.arc(fx, fy, pr2, 0, Math.PI*2); fot.fill();
+            };
+            if (hi >= 0.04) blob('0,255,190',  Math.min(0.9, hi));
+            if (oi >= 0.04) blob('0,180,255',  Math.min(0.9, oi));
+            if (ci >= 0.04) blob('255,50,90',  Math.min(0.9, ci));
+          }
+        }
+      }
+      renderGlobe._flatW = W; renderGlobe._flatH = H;
+      renderGlobe._sphereRotKey = null; // force sphere rebuild after flat change
+    }
+
+    // Stage 2: sphere projection — skip while dragging, rebuild when rotation settles
+    if (!globeDrag && renderGlobe._flatOverlay) {
+      const rotKey2 = (globeRotX * 120 | 0) + ',' + (globeRotY * 120 | 0);
+      const needSphere = !renderGlobe._sphereOverlay
+        || renderGlobe._sphereW !== W || renderGlobe._sphereH !== H
+        || renderGlobe._sphereRotKey !== rotKey2;
+
+      if (needSphere) {
+        // Low-res scanline projection: 1/4 resolution, then scale up
+        const SCALE = 4;
+        const sw = Math.ceil(W / SCALE), sh = Math.ceil(H / SCALE);
+        if (!renderGlobe._sphereOverlay || renderGlobe._sphereW !== W || renderGlobe._sphereH !== H) {
+          renderGlobe._sphereOverlay = document.createElement('canvas');
+          renderGlobe._sphereOverlay.width  = sw;
+          renderGlobe._sphereOverlay.height = sh;
+        }
+        const sct   = renderGlobe._sphereOverlay.getContext('2d');
+        const foCtx = renderGlobe._flatOverlay.getContext('2d');
+        const foPix = foCtx.getImageData(0, 0, W, H).data;
+        const out   = sct.createImageData(sw, sh);
+        const pix   = out.data;
+        const Rs    = R / SCALE, cxs = cx / SCALE, cys = cy / SCALE;
+
+        for (let py = 0; py < sh; py++) {
+          for (let px = 0; px < sw; px++) {
+            const nx = (px - cxs) / Rs, ny = -(py - cys) / Rs;
+            const nz2 = 1 - nx*nx - ny*ny;
+            if (nz2 < 0) continue;
+            const p3  = unrotatePoint({x: nx, y: ny, z: Math.sqrt(nz2)}, globeRotX, globeRotY);
+            const lat = Math.asin(Math.max(-1, Math.min(1, p3.y)));
+            const lon = Math.atan2(p3.x, p3.z);
+            const sfx = ((lon + Math.PI) / (Math.PI * 2)) * W;
+            const sfy = ((lat / Math.PI) + 0.5) * H;
+            const si  = (Math.min(H-1, sfy|0) * W + Math.min(W-1, sfx|0)) * 4;
+            if (foPix[si+3] === 0) continue;
+            const oi2 = (py * sw + px) * 4;
+            pix[oi2]=foPix[si]; pix[oi2+1]=foPix[si+1]; pix[oi2+2]=foPix[si+2]; pix[oi2+3]=foPix[si+3];
+          }
+        }
+        sct.putImageData(out, 0, 0);
+        renderGlobe._sphereRotKey = rotKey2;
+        renderGlobe._sphereW = W; renderGlobe._sphereH = H;
+      }
+      ctx.drawImage(renderGlobe._sphereOverlay, 0, 0, W, H);
+    }
+  }
+
+  // ── Day/Night terminator shadow ───────────────────────────────────────────
+  // The terminator is the great circle dividing day from night.
+  // Simple approach: shadowed hemisphere offset by dayTick progress.
+  const dayProgress = dayTick / (isNight ? NIGHT_LENGTH : DAY_LENGTH);
+  const terminatorLon = globeRotY + Math.PI * (isNight ? dayProgress : 1 + dayProgress);
+  // Draw dark hemisphere as clipped fill
+  ctx.save();
+  ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI*2); ctx.clip();
+  // Project terminator line as a swept arc
+  const shadowOffset = Math.cos(terminatorLon) * R * 0.5;
+  const shadowAlpha  = bm ? 0.45 : 0.38;
+  const shadowColor  = bm ? 'rgba(40,0,0,' : 'rgba(4,6,18,';
+  const shadowG = ctx.createLinearGradient(cx + shadowOffset * 0.5, cy, cx + R, cy);
+  shadowG.addColorStop(0, shadowColor + '0)');
+  shadowG.addColorStop(0.3, shadowColor + shadowAlpha + ')');
+  shadowG.addColorStop(1, shadowColor + shadowAlpha + ')');
+  ctx.fillStyle = shadowG;
+  ctx.fillRect(cx - R, cy - R, R * 2, R * 2);
+  ctx.restore();
+
+  // ── Lat/lon grid lines — very subtle ─────────────────────────────────────
+  ctx.globalAlpha = 0.06;
+  ctx.strokeStyle = '#8899bb';
+  ctx.lineWidth = 0.5;
+  // Latitude lines (every 30°)
+  for (let lat = -60; lat <= 60; lat += 30) {
+    const latR = lat * Math.PI / 180;
+    ctx.beginPath();
+    let first = true;
+    for (let lonDeg = -180; lonDeg <= 180; lonDeg += 3) {
+      const lonR = lonDeg * Math.PI / 180;
+      const p3 = lonLatTo3D(lonR, latR);
+      const pr = rotatePoint(p3, globeRotX, globeRotY);
+      if (pr.z < 0) { first = true; continue; }
+      const sx2 = cx + pr.x * R, sy2 = cy - pr.y * R;
+      first ? ctx.moveTo(sx2, sy2) : ctx.lineTo(sx2, sy2);
+      first = false;
+    }
+    ctx.stroke();
+  }
+  // Longitude lines (every 45°)
+  for (let lonDeg = -180; lonDeg <= 135; lonDeg += 45) {
+    const lonR = lonDeg * Math.PI / 180;
+    ctx.beginPath();
+    let first = true;
+    for (let latDeg = -80; latDeg <= 80; latDeg += 3) {
+      const latR = latDeg * Math.PI / 180;
+      const p3 = lonLatTo3D(lonR, latR);
+      const pr = rotatePoint(p3, globeRotX, globeRotY);
+      if (pr.z < 0) { first = true; continue; }
+      const sx2 = cx + pr.x * R, sy2 = cy - pr.y * R;
+      first ? ctx.moveTo(sx2, sy2) : ctx.lineTo(sx2, sy2);
+      first = false;
+    }
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+  ctx.restore(); // end sphere clip
+
+  // ── Sphere specular highlight ─────────────────────────────────────────────
+  // Strong specular glint — bright hot spot + wide secondary sheen
+  const specG = ctx.createRadialGradient(cx - R*0.30, cy - R*0.34, 0, cx, cy, R * 0.95);
+  specG.addColorStop(0,    'rgba(255,255,255,0.22)');
+  specG.addColorStop(0.12, 'rgba(255,255,255,0.10)');
+  specG.addColorStop(0.35, 'rgba(220,240,255,0.04)');
+  specG.addColorStop(1,    'rgba(0,0,0,0)');
+  ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI*2);
+  ctx.fillStyle = specG; ctx.fill();
+  // Secondary soft sheen — wide coverage, ocean reflection
+  const sheen = ctx.createRadialGradient(cx - R*0.15, cy - R*0.20, R*0.1, cx, cy, R);
+  sheen.addColorStop(0,   'rgba(80,160,255,0.08)');
+  sheen.addColorStop(0.5, 'rgba(40,100,200,0.03)');
+  sheen.addColorStop(1,   'rgba(0,0,0,0)');
+  ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI*2);
+  ctx.fillStyle = sheen; ctx.fill();
+
+
+
+  // ── Draw all entities on globe ────────────────────────────────────────────
+  // Collect all drawable items, project them, depth-sort, then draw
+  const items = [];
+
+  // Food
+  for (const f of foods) {
+    const proj = globeProject(f.x, f.y, W, H);
+    if (proj.visible) items.push({ type: 'food', obj: f, proj });
+  }
+  // Corpses
+  for (const corp of corpses) {
+    const proj = globeProject(corp.x, corp.y, W, H);
+    if (proj.visible) items.push({ type: 'corpse', obj: corp, proj });
+  }
+  // Fires
+  for (const f of fires) {
+    const proj = globeProject(f.x, f.y, W, H);
+    if (proj.visible) items.push({ type: 'fire', obj: f, proj });
+  }
+  // Craters
+  for (const cr of craters) {
+    const proj = globeProject(cr.x, cr.y, W, H);
+    if (proj.visible) items.push({ type: 'crater', obj: cr, proj });
+  }
+  // Plague zones
+  for (const pz of plagueZones) {
+    const proj = globeProject(pz.x, pz.y, W, H);
+    if (proj.visible) items.push({ type: 'plague', obj: pz, proj });
+  }
+  // Seeds
+  for (const s of seeds) {
+    const proj = globeProject(s.x, s.y, W, H);
+    if (proj.visible) items.push({ type: 'seed', obj: s, proj });
+  }
+  // Creatures (sleeping first in depth sort, active on top)
+  for (const c of creatures) {
+    if (!c.alive) continue;
+    const proj = globeProject(c.x, c.y, W, H);
+    if (proj.visible) items.push({ type: 'creature', obj: c, proj, dim: c.sleeping });
+  }
+
+  // Depth sort: back to front (lower z drawn first)
+  items.sort((a, b) => a.proj.z - b.proj.z);
+
+  // Draw each item — reuse 2D draw functions but with transformed coords
+  for (const item of items) {
+    const { proj, obj } = item;
+    // Scale factor: things near the edge of the sphere appear slightly smaller
+    const depthScale = 0.65 + proj.z * 0.35;
+
+    ctx.save();
+    // Translate to projected position, apply depth scale
+    ctx.translate(proj.sx, proj.sy);
+    ctx.scale(depthScale, depthScale);
+    ctx.translate(-obj.x, -obj.y); // undo the draw function's absolute positioning
+
+    // Dim items on darker hemisphere
+    const lightSide = proj.z;
+    const dimFactor = window._isNight
+      ? Math.max(0.3, 0.3 + lightSide * 0.7)
+      : Math.max(0.5, 0.5 + lightSide * 0.5);
+    ctx.globalAlpha = dimFactor;
+
+    switch (item.type) {
+      case 'food':    drawFood(obj);                    break;
+      case 'seed':    drawSeed(obj);                    break;
+      case 'corpse':  drawCorpse(obj);                  break;
+      case 'fire':    drawFire(obj);                    break;
+      case 'crater':  drawCrater(obj);                  break;
+      case 'plague':  drawPlagueZone(obj);              break;
+      case 'creature': drawCreature(obj, item.dim);     break;
+    }
+    ctx.restore();
+  }
+
+  // ── Meteors — drawn projected onto globe, above all entities ────────────────
+  for (const m of meteors) {
+    const proj = globeProject(m.x, m.y, W, H);
+    if (!proj.visible) continue;
+    const depthScale = 0.65 + proj.z * 0.35;
+    ctx.save();
+    ctx.translate(proj.sx, proj.sy);
+    ctx.scale(depthScale, depthScale);
+    ctx.translate(-m.x, -m.y);
+    ctx.globalAlpha = 0.85 + proj.z * 0.15;
+    drawMeteorWarning(m);
+    ctx.restore();
+  }
+
+  // ── Rim shadow (gives the sphere its edge depth) ──────────────────────────
+  const rimG = ctx.createRadialGradient(cx, cy, R * 0.78, cx, cy, R);
+  rimG.addColorStop(0, 'rgba(0,0,0,0)');
+  rimG.addColorStop(1, 'rgba(0,0,0,0.72)');
+  ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI*2);
+  ctx.fillStyle = rimG; ctx.fill();
+
+  // ── Outer sphere border ───────────────────────────────────────────────────
+  ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI*2);
+  ctx.strokeStyle = 'rgba(80,120,200,0.25)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // ── Frenzy overlay on globe ───────────────────────────────────────────────
+  if (frenziedTicks > 0) {
+    const fp = 0.5 + 0.5 * Math.sin(tick * 0.08);
+    ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI*2);
+    ctx.fillStyle = `rgba(255,20,50,${0.03 + fp * 0.03})`;
+    ctx.fill();
+  }
+
+  // ── UI legend (bottom-left of canvas) ────────────────────────────────────
+  ctx.globalAlpha = 0.55;
+  ctx.fillStyle = '#8899bb';
+  ctx.font = '10px monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText('drag to rotate  •  scroll to zoom  •  click to select', 12, H - 12);
+  ctx.globalAlpha = 1;
+}
+
+canvas.addEventListener('wheel', e => {
+  if (!globeMode) return;
+  e.preventDefault();
+  const delta = e.deltaY > 0 ? -0.08 : 0.08;
+  globeZoom = Math.max(0.35, Math.min(2.2, globeZoom + delta));
+  renderGlobe._flatW = 0; // invalidate flat overlay on zoom
+  renderGlobe._sphereRotKey = null;
+}, { passive: false });
+
+// ── Toggle globe mode ─────────────────────────────────────────────────────────
+function toggleGlobeMode() {
+  globeMode = !globeMode;
+  canvas.style.cursor = globeMode ? 'grab' : 'crosshair';
+  globeZoom = 1.0;
+  renderGlobe._stars = null;
+  renderGlobe._flatW = 0;
+  renderGlobe._sphereRotKey = null;
+  globeAutoSpin = true;
+  renderGlobe._stars = null; // regenerate star positions for new canvas size
+  const btn = document.getElementById('globeBtn');
+  if (btn) {
+    btn.textContent = globeMode ? '🌍 GLOBE: ON' : '🌐 GLOBE VIEW';
+    btn.classList.toggle('active-event', globeMode);
+  }
+}
+
+// ── Globe click intercept — remap deus/select coords ─────────────────────────
+// Wrapped around existing click handler: in globe mode, unproject first
+const _origClickHandler = canvas.onclick;
+canvas.addEventListener('click', e => {
+  if (!globeMode) return; // flat mode handled by existing listener
+  const rect = canvas.getBoundingClientRect();
+  const sx = e.clientX - rect.left, sy = e.clientY - rect.top;
+
+  // If dragging ended, suppress click
+  if (Math.abs(globeVelX) > 0.01 || Math.abs(globeVelY) > 0.01) return;
+
+  const W = canvas.width, H = canvas.height;
+  const simCoords = globeUnproject(sx, sy, W, H);
+  if (!simCoords) return; // clicked outside sphere
+
+  // Synthesise a fake event at the remapped sim coordinates
+  const fakeEvent = {
+    clientX: simCoords.x + canvas.getBoundingClientRect().left,
+    clientY: simCoords.y + canvas.getBoundingClientRect().top,
+    _globeRemapped: true,
+  };
+
+  // Manually re-run the click routing with sim coords
+  const mx = simCoords.x, my = simCoords.y;
+
+  if (deusMode === 'invasive')       { spawnInvasive(mx, my); return; }
+  if (deusMode === 'plague')         { placePlagueZone(mx, my); return; }
+  if (deusMode === 'meteor')         { meteors.push({ x: mx, y: my, countdown: METEOR_COUNTDOWN, maxCountdown: METEOR_COUNTDOWN }); clearDeusArmed(); return; }
+  if (deusMode === 'champion') {
+    let best = null, bestD = Infinity;
+    for (const c of creatures) {
+      const d = dist(c, {x:mx, y:my});
+      if (c.alive && d < Math.max(c.dna.size + 14, 20) && d < bestD) { best = c; bestD = d; }
+    }
+    if (best) {
+      best.champion = true; best.disciple = false; best.discipleTicks = 0;
+      best.energy = maxEnergy(best);
+      best.dna.speed = Math.min(5, best.dna.speed*2.2); best.dna.size = Math.min(12, best.dna.size*1.6);
+      best.dna.sense = Math.min(200, best.dna.sense*1.5); best.dna.stamina = Math.min(1, best.dna.stamina*1.4);
+      best.sleeping = false; best.sleepTicks = 0; best.sleepCooldown = 800;
+      selectedCreature = best; clearDeusArmed();
+    }
+    return;
+  }
+  if (deusMode === 'teleport-pick') {
+    let best = null, bestD = Infinity;
+    for (const c of creatures) {
+      const d = dist(c, {x:mx, y:my});
+      if (c.alive && d < Math.max(c.dna.size+14,20) && d < bestD) { best = c; bestD = d; }
+    }
+    if (best) { deusTeleportCreature = best; deusMode = 'teleport-place'; canvas.style.cursor = 'cell'; }
+    return;
+  }
+  if (deusMode === 'teleport-place') {
+    if (deusTeleportCreature && deusTeleportCreature.alive) {
+      deusTeleportCreature.x = mx; deusTeleportCreature.y = my;
+      deusTeleportCreature.vx = (Math.random()-0.5); deusTeleportCreature.vy = (Math.random()-0.5);
+      deusTeleportCreature.trail = [];
+    }
+    deusTeleportCreature = null; clearDeusArmed(); return;
+  }
+  // Select creature
+  let best = null, bestD = Infinity;
+  for (const c of creatures) {
+    const d = dist(c, {x:mx,y:my});
+    if (c.alive && d < Math.max(c.dna.size+12,18) && d < bestD) { best = c; bestD = d; }
+  }
+  selectedCreature = best || null;
+  if (selectedCreature) updateUI();
+}, true); // capture phase — fires before existing listener
+
 function render() {
   const W = canvas.width, H = canvas.height;
   ctx.clearRect(0, 0, W, H);
@@ -3769,7 +4478,7 @@ function updateUI() {
         <b>ENERGY:</b> ${Math.round(c.energy)} <b style="opacity:0.5">(${energyPct}%)</b><br>
         <b>AGE:</b> ${c.age}<br>
         <b>GEN:</b> ${c.gen}<br>
-        <b>MATINGS:</b> ${c.mateCount}/${mateMax}${maxedOut ? ' <b style="color:var(--accent2)">RETIRED</b>' : ''}<br>
+        <b>MATINGS:</b> ${c.mateCount}/${mateMax}${(maxedOut && !c.champion) ? ' <b style="color:var(--accent2)">RETIRED</b>' : ''}<br>
         <br>
         <b>— GENOME —</b><br>
         <b>SPEED:</b> ${d.speed.toFixed(2)}<br>
@@ -3815,8 +4524,8 @@ function loop() {
       }
     }
   }
-  updateUI(); // Always refresh panel so selected creature info stays live
-  render();
+  updateUI();
+  if (globeMode) renderGlobe(); else render();
   drawChart();
   requestAnimationFrame(loop);
 }
@@ -3878,6 +4587,8 @@ function updateParam(key, el) {
 }
 
 canvas.addEventListener('click', e => {
+  if (globeMode && !e._globeRemapped) return; // handled by globe capture listener
+  if (e._globeRemapped) return; // already handled by globe capture listener
   const rect = canvas.getBoundingClientRect();
   const mx = e.clientX - rect.left, my = e.clientY - rect.top;
 
